@@ -1,4 +1,4 @@
-# TimeBomb!!
+# TimeBomb!
 
 A floating stopwatch and timer for Linux and Windows that stays on top of everything - even fullscreen apps. Controlled entirely with Win+key shortcuts.
 
@@ -45,7 +45,7 @@ All shortcuts use the **Win (Super/Meta)** key:
 
 | Shortcut | Action |
 |----------|--------|
-| `Win + `` | Toggle visibility (show/hide) |
+| `Win + ` ` | Toggle visibility (show/hide) |
 | `Win + Enter` | Pause/Resume |
 | `Win + Backspace` | Reset |
 | `Win + Esc` | Switch between Timer/Stopwatch |
@@ -205,7 +205,7 @@ Just delete the folder. If you added it to startup, remove the shortcut from the
 
 ## Why "TimeBomb"?
 
-Because it counts down and makes loud noises. Also the name was available.
+No reason, it's just that the name was available!
 
 ## Technical details
 
@@ -246,7 +246,3 @@ MIT - do whatever you want with it
 If you find bugs or want features, open an issue. PRs welcome.
 
 Especially interested in hearing if it works on other Linux distros/DEs!
-
-## About
-
-Built by a 17-year-old, and also enhanced and took help with AI. And also Its my first time using git!
