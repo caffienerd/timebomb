@@ -1,0 +1,24 @@
+; Timer Settings Configuration
+; Edit the values below to customize your timer
+
+; KEYBOARD SHORTCUTS (use AutoHotkey key names)
+; Available keys: a-z, 0-9, F1-F12, Enter, Space, Tab, Backspace, Delete, etc.
+; Special keys: Up, Down, Left, Right, Home, End, PgUp, PgDn
+; Note: All shortcuts use Win + [key]
+
+ToggleKey=`
+PauseKey=Enter
+UpKey=Up
+DownKey=Down
+ResetKey=Backspace
+
+; ALARM SETTINGS
+AlarmVolume=50
+AlarmMessage=beep, beep, turn it off nigga
+
+; INSTRUCTIONS:
+; - Save this file after making changes
+; - Restart the timer application to apply new settings
+; - Use AutoHotkey key names for shortcuts
+; - Volume range: 0-100
+; - Keep message under 50 characters for best display
