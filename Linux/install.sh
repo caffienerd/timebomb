@@ -82,8 +82,8 @@ fi
 
 echo ""
 echo "[4/8] Installing DS Digital font (required for timer display)..."
-FONT_DIR="$HOME/.local/share/fonts"
-FONT_SOURCE="$SCRIPT_DIR/assets/fonts/DS-DIGI.TTF"
+FONT_DIR="$HOME/.local/share/font"
+FONT_SOURCE="$SCRIPT_DIR/assets/font/DS-DIGI.TTF"
 FONT_DEST="$FONT_DIR/DS-DIGI.TTF"
 
 # Check if font source exists in repo
