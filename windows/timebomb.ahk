@@ -39,7 +39,7 @@ global UpKey := "Up"
 global DownKey := "Down"
 global ResetKey := "Backspace"
 global AlarmVolume := 100
-global AlarmMessage := "Beep, Beep turn it off nigga."
+global AlarmMessage := "Beep, Beep turn it off."
 
 Menu, Tray, Icon, %A_ScriptDir%\icon\timebomb.ico
 
@@ -100,7 +100,7 @@ ResetKey=Backspace
 
 ; ALARM SETTINGS
 AlarmVolume=100
-AlarmMessage=Beep, Beep turn it off nigga.
+AlarmMessage=Beep, Beep turn it off.
 
 ; INSTRUCTIONS:
 ; - Save this file after making changes
