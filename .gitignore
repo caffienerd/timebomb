@@ -6,6 +6,12 @@ __pycache__/
 .Python
 *.so
 
+# Virtual Environment (venv)
+Linux/python/venv/
+venv/
+env/
+ENV/
+
 # State files (users will generate their own)
 Linux/assets/state/*.ini
 
@@ -21,3 +27,21 @@ windows/gui_state/*.ini
 # OS
 .DS_Store
 Thumbs.db
+
+# Python egg files
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json

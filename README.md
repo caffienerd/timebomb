@@ -246,3 +246,16 @@ MIT - do whatever you want with it
 If you find bugs or want features, open an issue. PRs welcome.
 
 Especially interested in hearing if it works on other Linux distros/DEs!
+
+## Credits
+TimeBomb uses the DS-Digital font by Dusit Supasawat for the retro timer display.
+
+## Third-Party Assets
+
+### DS-Digital Font
+- **Author:** Dusit Supasawat
+- **License:** Freeware for personal and commercial use
+- **Source:** [dafont.com/ds-digital.font](https://www.dafont.com/ds-digital.font)
+- **Location:** `Linux/assets/fonts/`
+
+This font is included for convenience and is property of its original author.

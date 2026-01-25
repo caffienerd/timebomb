@@ -1,22 +1,16 @@
-﻿#SingleInstance Force
+#SingleInstance Force
 #NoEnv
 #UseHook
 SetWorkingDir %A_ScriptDir%
 SetBatchLines -1
 
-; Global variables for both applications
-global AppMode := "timer" ; "timer" or "stopwatch"
 global TimerRunning := false
-global StopwatchRunning := false
-global TimerMinutes := 3
-global TimerSeconds := 0
-global StopwatchMinutes := 0
-global StopwatchSeconds := 0
+global Minutes := 3
+global Seconds := 0
 global GuiVisible := false
-global TimerDisplay, StopwatchDisplay, EndTimeDisplay, StartTimeDisplay
+global TimerDisplay, EndTimeDisplay
 global AlarmPlaying := false
 global TimerPaused := false
-global StopwatchPaused := false
 global AlarmGuiVisible := false
 global AdjustingUp := false
 global AdjustingDown := false
@@ -26,31 +20,26 @@ global PauseBlink := false
 global PauseBlinkState := false
 global TimerX := 100
 global TimerY := 100
-global StopwatchX := 300
-global StopwatchY := 100
-global ConfigFile := A_ScriptDir . "\gui_state\timebomb_config.ini"
+global ConfigFile := A_ScriptDir . "\gui_state\timer_config.ini"
 global SettingsFile := A_ScriptDir . "\settings\settings.txt"
 global WindowsKeyHeld := false
-global ShortcutExecuted := false
+global ShortcutExecuted := false  ; Track if shortcut was executed
 global AdjustStartTime := 0
 global AdjustSpeed := 200
 global LastAdjustTime := 0
 global LastSpeedTier := 0
 global PreviousWindow := 0
-global LastSetMinutes := 3
+global LastSetMinutes := 3  ; Track last manually set time
 global Resetting := false
-global LastTickTime := 0
-global StartTime := ""
 
-; Default settings
+; Default settings (will be loaded from file)
 global ToggleKey := "``"
 global PauseKey := "Enter"
 global UpKey := "Up"
 global DownKey := "Down"
 global ResetKey := "Backspace"
-global ModeSwitchKey := "esc"
 global AlarmVolume := 100
-global AlarmMessage := "Beep, Beep turn it off."
+global AlarmMessage := "Beep, Beep turn it off nigga."
 
 Menu, Tray, Icon, %A_ScriptDir%\icon\timebomb.ico
 
@@ -59,7 +48,6 @@ FileCreateDir, %A_ScriptDir%\gui_state
 FileCreateDir, %A_ScriptDir%\settings
 FileCreateDir, %A_ScriptDir%\icon
 FileCreateDir, %A_ScriptDir%\sounds
-FileCreateDir, %A_ScriptDir%\logs
 
 LoadSettings()
 LoadPosition()
@@ -69,39 +57,25 @@ LoadPosition()
 ; Only set WindowsKeyHeld if a shortcut was executed
 if (ShortcutExecuted) {
     WindowsKeyHeld := true
-    ; Stop stopwatch timer when Windows key is held
-    if (GuiVisible && AppMode = "stopwatch" && StopwatchRunning && !StopwatchPaused) {
-        SetTimer, UpdateStopwatch, Off
-    }
 }
 return
 
 ~LWin Up::
 ~RWin Up::
 WindowsKeyHeld := false
-ShortcutExecuted := false
+ShortcutExecuted := false  ; Reset the flag
 
-; Handle timer start when Win key is released
-if (GuiVisible && AppMode = "timer" && !TimerPaused && !AdjustingUp && !AdjustingDown && !Resetting) {
+; Only start timer when Win key is released AND conditions are met
+if (GuiVisible && !TimerPaused && !AdjustingUp && !AdjustingDown && !Resetting) {
     TimerRunning := true
-}
-
-; Handle stopwatch start when Win key is released
-if (GuiVisible && AppMode = "stopwatch" && !StopwatchPaused && !Resetting) {
-    StopwatchRunning := true
-    ; Reset LastTickTime and restart timer when Windows key is released
-    LastTickTime := A_TickCount
-    SetTimer, UpdateStopwatch, 10
 }
 
 ; Handle resetting state
 if (Resetting) {
     Resetting := false
-    if (AppMode = "timer" && !TimerPaused) {
+    ; Timer will start only if not paused and Win key released
+    if (!TimerPaused) {
         TimerRunning := true
-    }
-    if (AppMode = "stopwatch" && !StopwatchPaused) {
-        StopwatchRunning := true
     }
 }
 return
@@ -110,8 +84,8 @@ CreateSettingsFile() {
     if !FileExist(SettingsFile) {
         FileAppend,
 (
-; TimeBomb Settings Configuration
-; Edit the values below to customize your timer/stopwatch
+; Timer Settings Configuration
+; Edit the values below to customize your timer
 
 ; KEYBOARD SHORTCUTS (use AutoHotkey key names)
 ; Available keys: a-z, 0-9, F1-F12, Enter, Space, Tab, Backspace, Delete, etc.
@@ -123,15 +97,14 @@ PauseKey=Enter
 UpKey=Up
 DownKey=Down
 ResetKey=Backspace
-ModeSwitchKey=Z
 
 ; ALARM SETTINGS
 AlarmVolume=100
-AlarmMessage=Beep, Beep turn it off.
+AlarmMessage=Beep, Beep turn it off nigga.
 
 ; INSTRUCTIONS:
 ; - Save this file after making changes
-; - Restart the application to apply new settings
+; - Restart the timer application to apply new settings
 ; - Use AutoHotkey key names for shortcuts
 ; - Volume range: 0-100
 ; - Keep message under 50 characters for best display
@@ -155,8 +128,6 @@ LoadSettings() {
             DownKey := Match1
         else if (RegExMatch(A_LoopReadLine, "^ResetKey=(.+)$", Match))
             ResetKey := Match1
-        else if (RegExMatch(A_LoopReadLine, "^ModeSwitchKey=(.+)$", Match))
-            ModeSwitchKey := Match1
         else if (RegExMatch(A_LoopReadLine, "^AlarmVolume=(.+)$", Match))
             AlarmVolume := Match1
         else if (RegExMatch(A_LoopReadLine, "^AlarmMessage=(.+)$", Match))
@@ -164,110 +135,25 @@ LoadSettings() {
     }
     
     ; Set up hotkeys
-    Hotkey, #%ToggleKey%, ToggleApp
-    Hotkey, #%PauseKey%, PauseApp
+    Hotkey, #%ToggleKey%, ToggleTimer
+    Hotkey, #%PauseKey%, PauseTimer
     Hotkey, #%UpKey%, AdjustUp
     Hotkey, #%UpKey% Up, AdjustUpRelease
     Hotkey, #%DownKey%, AdjustDown
     Hotkey, #%DownKey% Up, AdjustDownRelease
-    Hotkey, #%ResetKey%, ResetApp
-    Hotkey, #%ModeSwitchKey%, SwitchMode
+    Hotkey, #%ResetKey%, ResetTimer
     return
 }
 
-SwitchMode:
-ShortcutExecuted := true
-
-; If GUI is not visible, just switch mode internally
-if (!GuiVisible) {
-    if (AppMode = "timer") {
-        AppMode := "stopwatch"
-        SoundPlay, %A_ScriptDir%\sounds\switch_stopwatch.wav
-    } else {
-        AppMode := "timer"
-        SoundPlay, %A_ScriptDir%\sounds\switch_timer.wav
-    }
-    SavePosition()
-    return
-}
-
-; Save current state if GUI is visible
-SavePosition()
-
-; Stop all timers
-SetTimer, UpdateTimer, Off
-SetTimer, UpdateStopwatch, Off
-SetTimer, BlinkTimer, Off
-SetTimer, PauseBlinkTimer, Off
-SetTimer, AcceleratedAdjustUp, Off
-SetTimer, AcceleratedAdjustDown, Off
-
-; Stop alarm if playing
-if (AlarmPlaying) {
-    SetTimer, LoopAlarm, Off
-    SoundPlay, *
-    AlarmPlaying := false
-    if (AlarmGuiVisible) {
-        Gui, Alarm:Destroy
-        AlarmGuiVisible := false
-    }
-}
-
-; Destroy GUI
-Gui, 1:Destroy
-GuiVisible := false
-
-; Switch mode and play appropriate sound
-if (AppMode = "timer") {
-    AppMode := "stopwatch"
-    SoundPlay, %A_ScriptDir%\sounds\switch_stopwatch.wav
-} else {
-    AppMode := "timer"
-    SoundPlay, %A_ScriptDir%\sounds\switch_timer.wav
-}
-
-; Reset states for new mode
-TimerRunning := false
-StopwatchRunning := false
-TimerPaused := false
-StopwatchPaused := false
-PauseBlink := false
-Blinking := false
-WindowsKeyHeld := false
-AdjustingUp := false
-AdjustingDown := false
-Resetting := false
-
-; Initialize fresh state based on new mode
-if (AppMode = "timer") {
-    TimerMinutes := 3
-    TimerSeconds := 0
-    LastSetMinutes := 3
-    CreateTimerGui()
-    GuiVisible := true
-    TimerRunning := true
-    SetTimer, UpdateTimer, 1000
-} else {
-    StopwatchMinutes := 0
-    StopwatchSeconds := 0
-    LastTickTime := 0
-    StartTime := GetCurrentTime()
-    CreateStopwatchGui()
-    GuiVisible := true
-    StopwatchRunning := true
-    SetTimer, UpdateStopwatch, 10
-}
-return
-
-ToggleApp:
-ShortcutExecuted := true
+ToggleTimer:
+ShortcutExecuted := true  ; Mark that shortcut was executed
 if (GuiVisible) {
     ; Clean shutdown - stop everything
     SavePosition()
+    ClearLastSetTime()  ; Clear when manually closing
     
     ; Stop all timers
     SetTimer, UpdateTimer, Off
-    SetTimer, UpdateStopwatch, Off
     SetTimer, BlinkTimer, Off
     SetTimer, PauseBlinkTimer, Off
     SetTimer, AcceleratedAdjustUp, Off
@@ -288,9 +174,7 @@ if (GuiVisible) {
     Gui, 1:Destroy
     GuiVisible := false
     TimerRunning := false
-    StopwatchRunning := false
     TimerPaused := false
-    StopwatchPaused := false
     PauseBlink := false
     Blinking := false
     WindowsKeyHeld := false
@@ -298,94 +182,55 @@ if (GuiVisible) {
     AdjustingDown := false
     Resetting := false
 } else {
-    ; Fresh start
-    if (AppMode = "timer") {
-        TimerMinutes := 3
-        TimerSeconds := 0
-        LastSetMinutes := 3
-        TimerRunning := false
+    ; Fresh start - reset everything to defaults
+    Minutes := 3
+    Seconds := 0
+    LastSetMinutes := 3  ; Reset to default
+    TimerRunning := false
+    TimerPaused := false
+    PauseBlink := false
+    Blinking := false
+    WindowsKeyHeld := false
+    AdjustingUp := false
+    AdjustingDown := false
+    Resetting := false
+    
+    SoundPlay, %A_ScriptDir%\sounds\start.wav
+    CreateTimerGui()
+    GuiVisible := true
+    TimerRunning := true
+    SetTimer, UpdateTimer, 1000
+}
+return
+
+PauseTimer:
+ShortcutExecuted := true  ; Mark that shortcut was executed
+if (GuiVisible && !AlarmPlaying) {
+    if (TimerPaused) {
         TimerPaused := false
         PauseBlink := false
-        Blinking := false
-        WindowsKeyHeld := false
-        AdjustingUp := false
-        AdjustingDown := false
-        Resetting := false
-        
-        SoundPlay, %A_ScriptDir%\sounds\start.wav
-        CreateTimerGui()
-        GuiVisible := true
-        TimerRunning := true
-        SetTimer, UpdateTimer, 1000
+        SetTimer, PauseBlinkTimer, Off
+        ; NEVER set TimerRunning = true here - only Win key release should do that
+        Gui, Font, s24 c23FF23, DS-Digital Bold
+        GuiControl, Font, TimerDisplay
+        SoundPlay, %A_ScriptDir%\sounds\play.wav, 1
     } else {
-        StopwatchMinutes := 0
-        StopwatchSeconds := 0
-        LastTickTime := A_TickCount
-        StartTime := GetCurrentTime()
-        StopwatchRunning := false
-        StopwatchPaused := false
-        PauseBlink := false
-        WindowsKeyHeld := false
-        Resetting := false
-        
-        SoundPlay, %A_ScriptDir%\sounds\start.wav
-        CreateStopwatchGui()
-        GuiVisible := true
-        StopwatchRunning := true
-        SetTimer, UpdateStopwatch, 10
+        TimerPaused := true
+        TimerRunning := false
+        PauseBlink := true
+        PauseBlinkState := false
+        SetTimer, PauseBlinkTimer, 450
+        SoundPlay, %A_ScriptDir%\sounds\pause.wav, 1
     }
 }
 return
 
-PauseApp:
-ShortcutExecuted := true
-if (GuiVisible) {
-    if (AppMode = "timer" && !AlarmPlaying) {
-        if (TimerPaused) {
-            TimerPaused := false
-            PauseBlink := false
-            SetTimer, PauseBlinkTimer, Off
-            Gui, Font, s24 c23FF23, DS-Digital Bold
-            GuiControl, Font, TimerDisplay
-            SoundPlay, %A_ScriptDir%\sounds\play.wav, 1
-        } else {
-            TimerPaused := true
-            TimerRunning := false
-            PauseBlink := true
-            PauseBlinkState := false
-            SetTimer, PauseBlinkTimer, 450
-            SoundPlay, %A_ScriptDir%\sounds\pause.wav, 1
-        }
-    } else if (AppMode = "stopwatch") {
-        if (StopwatchPaused) {
-            StopwatchPaused := false
-            PauseBlink := false
-            SetTimer, PauseBlinkTimer, Off
-            UpdateDisplayColors(true)
-            ; Reset LastTickTime when resuming so we don't count paused time
-            LastTickTime := A_TickCount
-            SetTimer, UpdateStopwatch, 10
-            SoundPlay, %A_ScriptDir%\sounds\play.wav, 1
-        } else {
-            StopwatchPaused := true
-            StopwatchRunning := false
-            ; STOP the timer completely when paused
-            SetTimer, UpdateStopwatch, Off
-            PauseBlink := true
-            PauseBlinkState := false
-            SetTimer, PauseBlinkTimer, 450
-            SoundPlay, %A_ScriptDir%\sounds\pause.wav, 1
-        }
-    }
-}
-return
-
-ResetApp:
-ShortcutExecuted := true
-if (GuiVisible || AlarmPlaying) {
+ResetTimer:
+ShortcutExecuted := true  ; Mark that shortcut was executed
+if (GuiVisible || AlarmPlaying) {  ; Allow reset even when alarm is playing
+    
     ; Stop all timers and sounds first
     SetTimer, UpdateTimer, Off
-    SetTimer, UpdateStopwatch, Off
     SetTimer, BlinkTimer, Off
     SetTimer, PauseBlinkTimer, Off
     SetTimer, AcceleratedAdjustUp, Off
@@ -408,96 +253,56 @@ if (GuiVisible || AlarmPlaying) {
         GuiVisible := false
     }
     
-    ; Reset state based on mode
-    if (AppMode = "timer") {
-        TimerMinutes := LastSetMinutes
-        TimerSeconds := 0
-        TimerRunning := false
-        TimerPaused := false
-        PauseBlink := false
-        Blinking := false
-        WindowsKeyHeld := false
-        AdjustingUp := false
-        AdjustingDown := false
-        Resetting := true
-    } else {
-        StopwatchMinutes := 0
-        StopwatchSeconds := 0
-        LastTickTime := A_TickCount
-        StartTime := GetCurrentTime()
-        StopwatchRunning := false
-        StopwatchPaused := false
-        PauseBlink := false
-        WindowsKeyHeld := false
-        Resetting := true
-    }
+    ; Reset all state variables
+    Minutes := LastSetMinutes
+    Seconds := 0
+    TimerRunning := false
+    TimerPaused := false
+    PauseBlink := false
+    Blinking := false
+    WindowsKeyHeld := false
+    AdjustingUp := false
+    AdjustingDown := false
+    Resetting := true  ; Set resetting flag
     
     ; Play reset sound
     SoundPlay, %A_ScriptDir%\sounds\reset.wav
     
     ; Create fresh GUI
-    if (AppMode = "timer") {
-        CreateTimerGui()
-        SetTimer, UpdateTimer, 1000
-    } else {
-        CreateStopwatchGui()
-        SetTimer, UpdateStopwatch, 10
-    }
+    CreateTimerGui()
     GuiVisible := true
     
-    ; Update display
-    if (AppMode = "timer") {
-        UpdateTimerDisplay()
-    } else {
-        UpdateStopwatchDisplay()
-    }
+    ; Set up timer for updates
+    SetTimer, UpdateTimer, 1000
+    
+    ; Update display with reset time
+    UpdateDisplay()
 }
 return
 
 LoadPosition() {
-    IniRead, SavedTimerX, %ConfigFile%, TimerPosition, X, 100
-    IniRead, SavedTimerY, %ConfigFile%, TimerPosition, Y, 100
-    IniRead, SavedStopwatchX, %ConfigFile%, StopwatchPosition, X, 300
-    IniRead, SavedStopwatchY, %ConfigFile%, StopwatchPosition, Y, 100
+    IniRead, SavedX, %ConfigFile%, Position, X, 100
+    IniRead, SavedY, %ConfigFile%, Position, Y, 100
     IniRead, SavedLastSetMinutes, %ConfigFile%, Timer, LastSetMinutes, 3
-    IniRead, SavedAppMode, %ConfigFile%, General, Mode, timer
     
-    if (SavedTimerX >= 0 && SavedTimerY >= 0 && SavedTimerX <= A_ScreenWidth && SavedTimerY <= A_ScreenHeight) {
-        TimerX := SavedTimerX
-        TimerY := SavedTimerY
-    }
-    
-    if (SavedStopwatchX >= 0 && SavedStopwatchY >= 0 && SavedStopwatchX <= A_ScreenWidth && SavedStopwatchY <= A_ScreenHeight) {
-        StopwatchX := SavedStopwatchX
-        StopwatchY := SavedStopwatchY
+    if (SavedX >= 0 && SavedY >= 0 && SavedX <= A_ScreenWidth && SavedY <= A_ScreenHeight) {
+        TimerX := SavedX
+        TimerY := SavedY
     }
     
     LastSetMinutes := SavedLastSetMinutes
-    AppMode := SavedAppMode
 }
 
 SavePosition() {
     if (GuiVisible) {
-        if (AppMode = "timer") {
-            WinGetPos, CurrentX, CurrentY, , , TimerOverlay
-            if (CurrentX != "" && CurrentY != "") {
-                IniWrite, %CurrentX%, %ConfigFile%, TimerPosition, X
-                IniWrite, %CurrentY%, %ConfigFile%, TimerPosition, Y
-                TimerX := CurrentX
-                TimerY := CurrentY
-            }
-        } else {
-            WinGetPos, CurrentX, CurrentY, , , StopwatchOverlay
-            if (CurrentX != "" && CurrentY != "") {
-                IniWrite, %CurrentX%, %ConfigFile%, StopwatchPosition, X
-                IniWrite, %CurrentY%, %ConfigFile%, StopwatchPosition, Y
-                StopwatchX := CurrentX
-                StopwatchY := CurrentY
-            }
+        WinGetPos, CurrentX, CurrentY, , , TimerOverlay
+        if (CurrentX != "" && CurrentY != "") {
+            IniWrite, %CurrentX%, %ConfigFile%, Position, X
+            IniWrite, %CurrentY%, %ConfigFile%, Position, Y
+            TimerX := CurrentX
+            TimerY := CurrentY
         }
     }
-    IniWrite, %LastSetMinutes%, %ConfigFile%, Timer, LastSetMinutes
-    IniWrite, %AppMode%, %ConfigFile%, General, Mode
 }
 
 SaveLastSetTime() {
@@ -513,12 +318,12 @@ CreateTimerGui() {
     Gui, +AlwaysOnTop +ToolWindow -Caption +Border +E0x08000000 +E0x00000080
     Gui, Color, 404045
     Gui, Font, s24 c23FF23, DS-Digital Bold
-    Gui, Add, Text, x5 y5 w120 h30 vTimerDisplay Center, % FormatTime(TimerMinutes, TimerSeconds)
+    Gui, Add, Text, x5 y5 w120 h30 vTimerDisplay Center, % FormatTime(Minutes, Seconds)
     GuiControlGet, TimerPos, Pos, TimerDisplay
     centerX := (142 - TimerPosW) // 2
     GuiControl, Move, TimerDisplay, x%centerX%
     Gui, Font, s11 cA0FFA0 w700, Arial
-    Gui, Add, Text, x5 y40 w170 h20 vEndTimeDisplay Center, % "Ends at: " GetEndTime(TimerMinutes, TimerSeconds)
+    Gui, Add, Text, x5 y40 w170 h20 vEndTimeDisplay Center, % "Ends at: " GetEndTime(Minutes, Seconds)
     GuiControlGet, EndTimePos, Pos, EndTimeDisplay
     centerX := (140 - EndTimePosW) // 2
     GuiControl, Move, EndTimeDisplay, x%centerX%
@@ -528,116 +333,6 @@ CreateTimerGui() {
     WinSet, Transparent, 235
     OnMessage(0x201, "WM_LBUTTONDOWN")
     OnMessage(0x202, "WM_LBUTTONUP")
-}
-
-CreateStopwatchGui() {
-    Gui, +AlwaysOnTop +ToolWindow -Caption +Border +E0x08000000 +E0x00000080
-    Gui, Color, 404045
-    
-    ; Match timer GUI dimensions
-    guiWidth := 140
-    guiHeight := 60
-    
-    ; Time string only (no milliseconds)
-    timeText := FormatTime(StopwatchMinutes, StopwatchSeconds)
-
-    ; === Main Time (HH:MM:SS) - Centered like timer ===
-    Gui, Font, s24 c23FF23, DS-Digital Bold
-    Gui, Add, Text, x5 y5 w130 h30 vStopwatchDisplay Center, %timeText%
-    
-    ; Center it properly like the timer
-    GuiControlGet, StopwatchPos, Pos, StopwatchDisplay
-    centerX := (guiWidth - StopwatchPosW) // 2
-    GuiControl, Move, StopwatchDisplay, x%centerX%
-
-    ; Start time display (always centered under)
-    Gui, Font, s11 cA0FFA0 w700, Arial
-    FormatTime, currentTime, , HH:mm:ss
-    startTimeText := "Started: " . currentTime
-    Gui, Add, Text, x0 y40 w%guiWidth% h20 vStartTimeDisplay Center, %startTimeText%
-    
-    ; Show GUI
-    Gui, Show, x%StopwatchX% y%StopwatchY% w%guiWidth% h%guiHeight% NoActivate, StopwatchOverlay
-    
-    Gui, +LastFound
-    WinSet, Transparent, 235
-    OnMessage(0x201, "WM_LBUTTONDOWN")
-    OnMessage(0x202, "WM_LBUTTONUP")
-}
-
-CenterStopwatchControls() {
-    guiWidth := 140
-    
-    ; Get actual sizes of the controls after they're rendered
-    GuiControlGet, stopwatchPos, Pos, StopwatchDisplay
-    GuiControlGet, msPos, Pos, MillisecondsDisplay
-    
-    ; Calculate total width including gap between controls
-    gap := 1  ; Small gap between main time and milliseconds
-    totalWidth := stopwatchPosW + gap + msPosW
-    
-    ; Calculate starting X position to center the entire group
-    startX := (guiWidth - totalWidth) // 2
-    
-    ; Position main time display
-    GuiControl, Move, StopwatchDisplay, x%startX% y5
-    
-    ; Position milliseconds display right next to main time, aligned with baseline
-    msX := startX + stopwatchPosW + gap
-    msY := 5 + 7  ; Offset down slightly to align with baseline of main text
-    GuiControl, Move, MillisecondsDisplay, x%msX% y%msY%
-}
-
-UpdateStopwatchDisplay() {
-    ; Only update if GUI is visible to prevent flickering
-    if (GuiVisible) {
-        ; Update only the main time display (no milliseconds)
-        GuiControl,, StopwatchDisplay, % FormatTime(StopwatchMinutes, StopwatchSeconds)
-    }
-}
-
-UpdateStopwatchSecondsOnly() {
-    ; Update only the main time display (no milliseconds)
-    if (GuiVisible) {
-        GuiControl,, StopwatchDisplay, % FormatTime(StopwatchMinutes, StopwatchSeconds)
-    }
-}
-
-UpdateDisplayColors(visible) {
-    if (visible) {
-        GuiControl, Show, StopwatchDisplay
-    } else {
-        GuiControl, Hide, StopwatchDisplay
-    }
-}
-
-CheckAndRecreateGui() {
-    ; Check if we need to recreate GUI due to digit count change
-    static lastDigitCount := 2  ; Start with 2 digits (01, 02, etc.)
-    currentDigitCount := (StopwatchMinutes >= 100) ? 3 : 2  ; Either 2 digits (01-99) or 3 digits (100+)
-    
-    if (currentDigitCount != lastDigitCount && GuiVisible) {
-        ; Save position before destroying
-        WinGetPos, currentX, currentY, , , StopwatchOverlay
-        if (currentX != "" && currentY != "") {
-            StopwatchX := currentX
-            StopwatchY := currentY
-        }
-        
-        ; Destroy and recreate with new layout
-        Gui, 1:Destroy
-        CreateStopwatchGui()
-        lastDigitCount := currentDigitCount
-    }
-}
-
-
-; Add this function anywhere in your script (I recommend after the CreateStopwatchGui function):
-
-GetCurrentTime() {
-    ; Get current time in HH:mm:ss format
-    FormatTime, currentTime, , HH:mm:ss
-    return currentTime
 }
 
 GetEndTime(addMins, addSecs) {
@@ -656,11 +351,7 @@ GetEndTime(addMins, addSecs) {
 }
 
 FormatTime(min, sec) {
-    if (min >= 100) {
-        return Format("{:03d}:{:02d}", min, sec)  ; 3 digits with leading zeros: 100, 101, 102...
-    } else {
-        return Format("{:02d}:{:02d}", min, sec)  ; 2 digits with leading zeros: 01, 02, 03... 11, 12...
-    }
+    return Format("{:02d}:{:02d}", min, sec)
 }
 
 GetAdjustDelay(holdTime) {
@@ -678,18 +369,19 @@ GetAdjustDelay(holdTime) {
 }
 
 UpdateTimer:
-if (TimerRunning && !TimerPaused && !WindowsKeyHeld && !Resetting && (TimerMinutes > 0 || TimerSeconds > 0)) {
-    TimerSeconds--
-    if (TimerSeconds < 0) {
-        TimerMinutes--
-        TimerSeconds := 59
+if (TimerRunning && !TimerPaused && !WindowsKeyHeld && !Resetting && (Minutes > 0 || Seconds > 0)) {
+    Seconds--
+    if (Seconds < 0) {
+        Minutes--
+        Seconds := 59
     }
-    if (TimerMinutes = 0 && TimerSeconds = 10 && !Blinking) {
+    if (Minutes = 0 && Seconds = 10 && !Blinking) {
         Blinking := true
         SetTimer, BlinkTimer, 500
     }
-    UpdateTimerDisplay()
-} else if (TimerMinutes = 0 && TimerSeconds = 0 && !TimerPaused && !WindowsKeyHeld && !Resetting && TimerRunning) {
+    GuiControl,, TimerDisplay, % FormatTime(Minutes, Seconds)
+    GuiControl,, EndTimeDisplay, % "Ends at: " GetEndTime(Minutes, Seconds)
+} else if (Minutes = 0 && Seconds = 0 && !TimerPaused && !WindowsKeyHeld && !Resetting && TimerRunning) {
     TimerRunning := false
     SetTimer, UpdateTimer, Off
     SetTimer, BlinkTimer, Off
@@ -703,69 +395,30 @@ if (TimerRunning && !TimerPaused && !WindowsKeyHeld && !Resetting && (TimerMinut
     CreateAlarmGui()
 } else {
     ; ALWAYS update the "Ends at" display regardless of timer state
-    GuiControl,, EndTimeDisplay, % "Ends at: " GetEndTime(TimerMinutes, TimerSeconds)
-}
-return
-
-UpdateStopwatch:
-if (StopwatchRunning && !StopwatchPaused && !WindowsKeyHeld && !Resetting) {
-    ; Use system tick count for accurate timing
-    currentTick := A_TickCount
-    if (LastTickTime == 0) {
-        LastTickTime := currentTick
-    }
-    
-    ; Calculate elapsed milliseconds since last update
-    elapsedMs := currentTick - LastTickTime
-    if (elapsedMs >= 1000) {  ; Update every second
-        LastTickTime := currentTick
-        secondsToAdd := elapsedMs // 1000
-        StopwatchSeconds += secondsToAdd
-        
-        if (StopwatchSeconds >= 60) {
-            StopwatchMinutes += StopwatchSeconds // 60
-            StopwatchSeconds := Mod(StopwatchSeconds, 60)
-        }
-        
-        ; Check if we need to recreate GUI due to digit change
-        CheckAndRecreateGui()
-        
-        ; Update display
-        UpdateStopwatchSecondsOnly()
-    }
+    ; This ensures dynamic updating when Win key is held, paused, adjusting, etc.
+    GuiControl,, EndTimeDisplay, % "Ends at: " GetEndTime(Minutes, Seconds)
 }
 return
 
 PauseBlinkTimer:
 if (PauseBlink) {
     PauseBlinkState := !PauseBlinkState
-    if (AppMode = "timer") {
-        if (PauseBlinkState) {
-            Gui, Font, s24 c23FF23, DS-Digital Bold
-        } else {
-            Gui, Font, s24 c404045, DS-Digital Bold
-        }
-        GuiControl, Font, TimerDisplay
+    if (PauseBlinkState) {
+        Gui, Font, s24 c23FF23, DS-Digital Bold
     } else {
-        UpdateDisplayColors(PauseBlinkState)
+        Gui, Font, s24 c404045, DS-Digital Bold
     }
+    GuiControl, Font, TimerDisplay
 }
 return
 
-UpdateTimerDisplay() {
-    GuiControl,, TimerDisplay, % FormatTime(TimerMinutes, TimerSeconds)
-    GuiControl,, EndTimeDisplay, % "Ends at: " GetEndTime(TimerMinutes, TimerSeconds)
-}
-
-
-
 BlinkTimer:
-if (Blinking && (TimerMinutes = 0 && TimerSeconds <= 10)) {
+if (Blinking && (Minutes = 0 && Seconds <= 10)) {
     BlinkState := !BlinkState
     color := BlinkState ? "cFF0000" : "c23FF23"
     Gui, Font, s24 %color%, DS-Digital Bold
     GuiControl, Font, TimerDisplay
-} else if (Blinking && (TimerMinutes > 0 || TimerSeconds > 10)) {
+} else if (Blinking && (Minutes > 0 || Seconds > 10)) {
     Blinking := false
     SetTimer, BlinkTimer, Off
     Gui, Font, s24 c23FF23, DS-Digital Bold
@@ -793,6 +446,57 @@ CreateAlarmGui() {
     AlarmGuiVisible := true
 }
 
+ResetButtonPressed() {
+    ; Stop all timers and sounds first
+    SetTimer, LoopAlarm, Off
+    SetTimer, UpdateTimer, Off
+    SetTimer, BlinkTimer, Off
+    SetTimer, PauseBlinkTimer, Off
+    SetTimer, AcceleratedAdjustUp, Off
+    SetTimer, AcceleratedAdjustDown, Off
+    
+    ; Stop alarm and close alarm GUI
+    SoundPlay, *
+    AlarmPlaying := false
+    Gui, Alarm:Destroy
+    AlarmGuiVisible := false
+    
+    ; Destroy existing main GUI if it exists
+    if (GuiVisible) {
+        Gui, 1:Destroy
+        GuiVisible := false
+    }
+    
+    ; Reset all state variables (NO Windows key tracking stuff)
+    Minutes := LastSetMinutes
+    Seconds := 0
+    TimerRunning := true  ; Start immediately, no waiting for Win key
+    TimerPaused := false
+    PauseBlink := false
+    Blinking := false
+    WindowsKeyHeld := false
+    AdjustingUp := false
+    AdjustingDown := false
+    Resetting := false  ; No resetting flag needed
+    
+    ; Play reset sound
+    SoundPlay, %A_ScriptDir%\sounds\reset.wav
+    
+    ; Create fresh GUI
+    CreateTimerGui()
+    GuiVisible := true
+    
+    ; Start the timer immediately
+    SetTimer, UpdateTimer, 1000
+    
+    ; Update display with reset time
+    UpdateDisplay()
+}
+
+DelayedReset:
+    ; This is no longer needed, remove this function
+return
+
 StopAlarm() {
     SetTimer, LoopAlarm, Off
     SoundPlay, *
@@ -815,22 +519,22 @@ StopAlarm() {
 }
 
 AdjustUp:
-ShortcutExecuted := true
-if (GuiVisible && AppMode = "timer" && !TimerPaused) {
+ShortcutExecuted := true  ; Mark that shortcut was executed
+if (GuiVisible && !TimerPaused) {
     if (!AdjustingUp) {
         AdjustingUp := true
         TimerRunning := false
         AdjustStartTime := A_TickCount
         LastAdjustTime := A_TickCount
         LastSpeedTier := 0
-        if (TimerMinutes < 999) {
-            TimerMinutes++
-            LastSetMinutes := TimerMinutes
-            TimerSeconds := 0
+        if (Minutes < 999) {
+            Minutes++
+            LastSetMinutes := Minutes  ; Track the adjusted time
+            Seconds := 0
             SoundPlay, %A_ScriptDir%\sounds\adjust.wav, 1
-            UpdateTimerDisplay()
+            UpdateDisplay()
             ResetBlinkingIfNeeded()
-            SaveLastSetTime()
+            SaveLastSetTime()  ; Save to config
         }
         SetTimer, AcceleratedAdjustUp, 50
     }
@@ -845,22 +549,22 @@ if (AdjustingUp) {
 return
 
 AdjustDown:
-ShortcutExecuted := true
-if (GuiVisible && AppMode = "timer" && !TimerPaused) {
+ShortcutExecuted := true  ; Mark that shortcut was executed
+if (GuiVisible && !TimerPaused) {
     if (!AdjustingDown) {
         AdjustingDown := true
         TimerRunning := false
         AdjustStartTime := A_TickCount
         LastAdjustTime := A_TickCount
         LastSpeedTier := 0
-        if (TimerMinutes > 1) {
-            TimerMinutes--
-            LastSetMinutes := TimerMinutes
-            TimerSeconds := 0
+        if (Minutes > 1) {
+            Minutes--
+            LastSetMinutes := Minutes  ; Track the adjusted time
+            Seconds := 0
             SoundPlay, %A_ScriptDir%\sounds\adjust.wav, 1
-            UpdateTimerDisplay()
+            UpdateDisplay()
             ResetBlinkingIfNeeded()
-            SaveLastSetTime()
+            SaveLastSetTime()  ; Save to config
         }
         SetTimer, AcceleratedAdjustDown, 50
     }
@@ -874,51 +578,9 @@ if (AdjustingDown) {
 }
 return
 
-AcceleratedAdjustUp:
-if (!AdjustingUp || TimerMinutes >= 999) {
-    SetTimer, AcceleratedAdjustUp, Off
-    return
-}
-HoldTime := (A_TickCount - AdjustStartTime) / 1000.0
-AdjustDelay := GetAdjustDelay(HoldTime)
-
-if (A_TickCount - LastAdjustTime >= AdjustDelay) {
-    TimerMinutes++
-    LastSetMinutes := TimerMinutes
-    TimerSeconds := 0
-    LastAdjustTime := A_TickCount
-    UpdateTimerDisplay()
-    ResetBlinkingIfNeeded()
-    SaveLastSetTime()
-}
-return
-
-AcceleratedAdjustDown:
-if (!AdjustingDown || TimerMinutes <= 1) {
-    SetTimer, AcceleratedAdjustDown, Off
-    return
-}
-HoldTime := (A_TickCount - AdjustStartTime) / 1000.0
-AdjustDelay := GetAdjustDelay(HoldTime)
-
-if (A_TickCount - LastAdjustTime >= AdjustDelay) {
-    TimerMinutes--
-    LastSetMinutes := TimerMinutes
-    TimerSeconds := 0
-    LastAdjustTime := A_TickCount
-    UpdateTimerDisplay()
-    ResetBlinkingIfNeeded()
-    SaveLastSetTime()
-}
-return
-
-ResetBlinkingIfNeeded() {
-    if (Blinking && (TimerMinutes > 0 || TimerSeconds > 10)) {
-        Blinking := false
-        SetTimer, BlinkTimer, Off
-        Gui, Font, s24 c23FF23, DS-Digital Bold
-        GuiControl, Font, TimerDisplay
-    }
+UpdateDisplay() {
+    GuiControl,, TimerDisplay, % FormatTime(Minutes, Seconds)
+    GuiControl,, EndTimeDisplay, % "Ends at: " GetEndTime(Minutes, Seconds)
 }
 
 WM_LBUTTONDOWN() {
@@ -934,11 +596,56 @@ WM_LBUTTONDOWN_Alarm() {
     PostMessage, 0xA1, 2, , , Alarm
 }
 
+AcceleratedAdjustUp:
+if (!AdjustingUp || Minutes >= 999) {
+    SetTimer, AcceleratedAdjustUp, Off
+    return
+}
+HoldTime := (A_TickCount - AdjustStartTime) / 1000.0
+AdjustDelay := GetAdjustDelay(HoldTime)
+
+if (A_TickCount - LastAdjustTime >= AdjustDelay) {
+    Minutes++
+    LastSetMinutes := Minutes
+    Seconds := 0
+    LastAdjustTime := A_TickCount
+    UpdateDisplay()
+    ResetBlinkingIfNeeded()
+    SaveLastSetTime()
+}
+return
+
+AcceleratedAdjustDown:
+if (!AdjustingDown || Minutes <= 1) {
+    SetTimer, AcceleratedAdjustDown, Off
+    return
+}
+HoldTime := (A_TickCount - AdjustStartTime) / 1000.0
+AdjustDelay := GetAdjustDelay(HoldTime)
+
+if (A_TickCount - LastAdjustTime >= AdjustDelay) {
+    Minutes--
+    LastSetMinutes := Minutes
+    Seconds := 0
+    LastAdjustTime := A_TickCount
+    UpdateDisplay()
+    ResetBlinkingIfNeeded()
+    SaveLastSetTime()
+}
+return
+
+ResetBlinkingIfNeeded() {
+    if (Blinking && (Minutes > 0 || Seconds > 10)) {
+        Blinking := false
+        SetTimer, BlinkTimer, Off
+        Gui, Font, s24 c23FF23, DS-Digital Bold
+        GuiControl, Font, TimerDisplay
+    }
+}
+
 GuiClose:
 SavePosition()
-if (AppMode = "timer") {
-    ClearLastSetTime()  ; Clear when manually closing
-}
+ClearLastSetTime()  ; Clear when manually closing
 if (AlarmGuiVisible) {
     SetTimer, LoopAlarm, Off
     SoundPlay, *
@@ -953,5 +660,4 @@ GuiVisible := false
 WindowsKeyHeld := false
 AdjustingUp := false
 AdjustingDown := false
-SavePosition()
 return

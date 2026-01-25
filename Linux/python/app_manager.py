@@ -1,5 +1,5 @@
 #app_manager
-from gi.repository import GLib
+from gi.repository import GLib, Gdk
 import os
 import time
 import configparser
@@ -157,6 +157,57 @@ class AppManager:
                     self.timer.running = True
                     self.timer.started_with_win_held = False
     
+    def get_screen_center(self):
+        """Get the center position for the window on the current screen"""
+        # Get screen dimensions
+        display = Gdk.Display.get_default()
+        monitor = display.get_primary_monitor()
+        if not monitor:
+            # Fallback: get first monitor
+            monitor = display.get_monitor(0)
+        
+        geometry = monitor.get_geometry()
+        screen_width = geometry.width
+        screen_height = geometry.height
+        
+        # Get window size (estimated - window might not be realized yet)
+        window_width = 180
+        window_height = 85
+        
+        # Calculate center position
+        center_x = (screen_width - window_width) // 2
+        center_y = (screen_height - window_height) // 2
+        
+        return center_x, center_y
+    
+    def is_position_valid(self, x, y):
+        """Check if a position is valid for the current screen"""
+        # Get screen dimensions
+        display = Gdk.Display.get_default()
+        monitor = display.get_primary_monitor()
+        if not monitor:
+            monitor = display.get_monitor(0)
+        
+        geometry = monitor.get_geometry()
+        screen_x = geometry.x
+        screen_y = geometry.y
+        screen_width = geometry.width
+        screen_height = geometry.height
+        
+        # Window size (estimated)
+        window_width = 180
+        window_height = 85
+        
+        # Check if position is completely off-screen
+        if x < screen_x or y < screen_y:
+            return False
+        if x + window_width > screen_x + screen_width:
+            return False
+        if y + window_height > screen_y + screen_height:
+            return False
+        
+        return True
+    
     def save_state(self):
         """Save mode and GUI position to config file"""
         config = configparser.ConfigParser()
@@ -179,8 +230,14 @@ class AppManager:
     
     def load_state(self):
         """Load mode and GUI position from config file"""
+        # Default position (will be calculated if needed)
+        default_x, default_y = None, None
+        
         if not os.path.exists(self.config_file):
-            self.gui.move(200, 200)
+            # No config file - use center of screen
+            default_x, default_y = self.get_screen_center()
+            print(f"[APP] No state file - using screen center: ({default_x}, {default_y})")
+            self.gui.move(default_x, default_y)
             return
 
         config = configparser.ConfigParser()
@@ -193,8 +250,30 @@ class AppManager:
             try:
                 x = int(config['Position'].get('x', 200))
                 y = int(config['Position'].get('y', 200))
-                self.gui.move(x, y)
-            except:
-                self.gui.move(200, 200)
+                
+                # Validate position
+                if self.is_position_valid(x, y):
+                    print(f"[APP] Loaded valid position: ({x}, {y})")
+                    self.gui.move(x, y)
+                else:
+                    # Position is invalid - use center
+                    if default_x is None:
+                        default_x, default_y = self.get_screen_center()
+                    print(f"[APP] Position ({x}, {y}) is off-screen - using center: ({default_x}, {default_y})")
+                    self.gui.move(default_x, default_y)
+                    # Save the new valid position
+                    self.save_state()
+            except (ValueError, TypeError) as e:
+                # Invalid position data - use center
+                if default_x is None:
+                    default_x, default_y = self.get_screen_center()
+                print(f"[APP] Invalid position data - using center: ({default_x}, {default_y})")
+                self.gui.move(default_x, default_y)
+                self.save_state()
         else:
-            self.gui.move(200, 200)
+            # No position saved - use center
+            if default_x is None:
+                default_x, default_y = self.get_screen_center()
+            print(f"[APP] No position in config - using center: ({default_x}, {default_y})")
+            self.gui.move(default_x, default_y)
+            self.save_state()

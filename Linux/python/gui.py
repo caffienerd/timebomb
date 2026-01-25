@@ -375,7 +375,7 @@ class AlarmGUI(Gtk.Window):
     def set_message(self, text):
         escaped = GLib.markup_escape_text(text)
         self.label.set_markup(
-            f'<span font="13" foreground="#A0FFA0" font_family="Press Start 2P">{escaped}</span>'
+            f'<span font="24" foreground="#A0FFA0" font_family="DS-Digital">{escaped}</span>'
         )
     
     def on_key_press(self, widget, event):
@@ -388,11 +388,11 @@ class AlarmGUI(Gtk.Window):
         css = b"""
         window { background: #404045; }
         #alarm_text { 
-            font-family: "Press Start 2P"; 
+            font-family: "DS-Digital"; 
             color: #A0FFA0; 
         }
         .alarm_button {
-            font-family: "Press Start 2P";
+            font-family: "DS-Digital";
             font-size: 11px;
             background: #404045;
             color: #A0FFA0;
