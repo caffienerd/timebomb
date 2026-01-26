@@ -26,7 +26,7 @@ detect_package_manager() {
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
-        PACKAGES="python3 gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig"
+        PACKAGES="python3 python3-devel gcc cairo-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig"
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
