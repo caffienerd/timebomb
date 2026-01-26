@@ -82,7 +82,7 @@ fi
 
 echo ""
 echo "[4/8] Installing DS Digital font (required for timer display)..."
-FONT_DIR="$HOME/.local/share/font"
+FONT_DIR="$HOME/.local/share/fonts"
 FONT_SOURCE="$SCRIPT_DIR/assets/font/DS-DIGI.TTF"
 FONT_DEST="$FONT_DIR/DS-DIGI.TTF"
 
