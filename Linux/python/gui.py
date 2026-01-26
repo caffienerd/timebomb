@@ -13,10 +13,82 @@ except (ValueError, ImportError):
     HAS_LAYER_SHELL = False
     print("[GUI] GtkLayerShell not available - using fallback method")
 
+# ==================== DYNAMIC SCALING ====================
+class ScreenScaler:
+    """Calculate DPI-aware scaling based on screen resolution"""
+    # Reference: 1920x1080 (full HD) - these are the base sizes
+    REFERENCE_WIDTH = 1920
+    REFERENCE_HEIGHT = 1080
+    
+    # Base UI sizes (pixels) designed for 1920x1080
+    BASE_WINDOW_WIDTH = 180
+    BASE_WINDOW_HEIGHT = 85
+    BASE_MAIN_FONT_SIZE = 40
+    BASE_SUB_FONT_SIZE = 18
+    BASE_PREFIX_FONT_SIZE = 18
+    BASE_MARGIN = 6
+    BASE_PADDING = 8
+    
+    def __init__(self):
+        """Initialize scaler with current screen dimensions"""
+        display = Gdk.Display.get_default()
+        screen = display.get_default_screen() if display else Gdk.Screen.get_default()
+        
+        self.screen_width = screen.get_width()
+        self.screen_height = screen.get_height()
+        
+        # Calculate scale factor based on shorter dimension (handles portrait/landscape)
+        # Use the ratio that makes most sense for scaling UI
+        width_ratio = self.screen_width / self.REFERENCE_WIDTH
+        height_ratio = self.screen_height / self.REFERENCE_HEIGHT
+        
+        # Use geometric mean for more balanced scaling across different aspect ratios
+        import math
+        self.scale_factor = math.sqrt(width_ratio * height_ratio)
+        
+        # Clamp between 0.5x and 2.0x to avoid extreme scaling
+        self.scale_factor = max(0.5, min(2.0, self.scale_factor))
+        
+        print(f"[GUI] Screen: {self.screen_width}x{self.screen_height}")
+        print(f"[GUI] Scale factor: {self.scale_factor:.2f}x")
+    
+    def scale_size(self, base_size):
+        """Scale a size value"""
+        return int(base_size * self.scale_factor)
+    
+    def scale_font(self, base_font_size):
+        """Scale font size"""
+        return int(base_font_size * self.scale_factor)
+    
+    def get_window_size(self):
+        """Get scaled window dimensions"""
+        return (
+            self.scale_size(self.BASE_WINDOW_WIDTH),
+            self.scale_size(self.BASE_WINDOW_HEIGHT)
+        )
+    
+    def get_font_sizes(self):
+        """Get all scaled font sizes"""
+        return {
+            'main': self.scale_font(self.BASE_MAIN_FONT_SIZE),
+            'sub': self.scale_font(self.BASE_SUB_FONT_SIZE),
+            'prefix': self.scale_font(self.BASE_PREFIX_FONT_SIZE),
+        }
+    
+    def get_margins(self):
+        """Get scaled margins"""
+        return {
+            'margin': self.scale_size(self.BASE_MARGIN),
+            'padding': self.scale_size(self.BASE_PADDING),
+        }
+
 # ==================== GUI ====================
 class AppGUI(Gtk.Window):
     def __init__(self):
         super().__init__()
+        
+        # Initialize scaler first
+        self.scaler = ScreenScaler()
         
         # Detect if we're on Wayland
         display = Gdk.Display.get_default()
@@ -44,8 +116,9 @@ class AppGUI(Gtk.Window):
             self.set_visual(visual)
         self.set_app_paintable(True)
 
-        # Size
-        self.set_default_size(180, 85)
+        # Size - now scaled dynamically
+        width, height = self.scaler.get_window_size()
+        self.set_default_size(width, height)
 
         # Frame holder
         frame = Gtk.EventBox()
@@ -54,10 +127,11 @@ class AppGUI(Gtk.Window):
 
         # Layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        vbox.set_margin_top(6)
-        vbox.set_margin_bottom(6)
-        vbox.set_margin_start(8)
-        vbox.set_margin_end(8)
+        margins = self.scaler.get_margins()
+        vbox.set_margin_top(margins['margin'])
+        vbox.set_margin_bottom(margins['margin'])
+        vbox.set_margin_start(margins['padding'])
+        vbox.set_margin_end(margins['padding'])
         frame.add(vbox)
 
         # Main time label
@@ -174,47 +248,49 @@ class AppGUI(Gtk.Window):
         self.prefix_label.set_text(text)
 
     def apply_css(self):
-        css = b"""
-        window { background: transparent; }
+        fonts = self.scaler.get_font_sizes()
+        
+        css = f"""
+        window {{ background: transparent; }}
 
-        #box {
+        #box {{
             background-color: rgba(64,64,69,0.85);
             border: 1px solid rgba(10,10,12,0.95);
             border-radius: 6px;
-        }
+        }}
 
-        label {
+        label {{
             background: transparent;
             font-family: Arial;
-            font-size: 14px;
+            font-size: {fonts['prefix']}px;
             font-weight: bold;
             color: #A0FFA0;
-        }
+        }}
 
-        #main_time {
+        #main_time {{
             font-family: "DS-Digital", monospace;
-            font-size: 40px;
+            font-size: {fonts['main']}px;
             color: #23FF23;
-        }
+        }}
 
-        #main_time_red {
+        #main_time_red {{
             font-family: "DS-Digital", monospace;
-            font-size: 40px;
+            font-size: {fonts['main']}px;
             color: #FF2323;
-        }
+        }}
 
-        #end_time {
+        #end_time {{
             font-family: Arial;
-            font-size: 18px;
+            font-size: {fonts['sub']}px;
             font-weight: bold;
             color: #A0FFA0;
-        }
+        }}
 
-        #prefix {
-            font-size: 18px;
+        #prefix {{
+            font-size: {fonts['prefix']}px;
             color: #A0FFA0;
-        }
-        """
+        }}
+        """.encode()
 
         provider = Gtk.CssProvider()
         provider.load_from_data(css)
@@ -299,16 +375,21 @@ class AlarmGUI(Gtk.Window):
         self.on_dismiss = on_dismiss or (lambda: None)
         self.on_reset = on_reset or (lambda: None)
         
+        # Initialize scaler
+        scaler = ScreenScaler()
+        
         # Detect Wayland
         display = Gdk.Display.get_default()
         is_wayland = display and type(display).__name__ == 'GdkWaylandDisplay'
         
-        # Window settings
+        # Window settings - use scaled dimensions
+        alarm_width = scaler.scale_size(440)
+        alarm_height = scaler.scale_size(90)
         self.set_decorated(False)
         self.set_skip_taskbar_hint(True)
         self.set_skip_pager_hint(True)
         self.set_position(Gtk.WindowPosition.CENTER)
-        self.set_default_size(440, 90)
+        self.set_default_size(alarm_width, alarm_height)
         self.set_resizable(False)
         
         # Apply Layer Shell if on Wayland
@@ -373,9 +454,11 @@ class AlarmGUI(Gtk.Window):
         self.connect("key-press-event", self.on_key_press)
 
     def set_message(self, text):
+        scaler = ScreenScaler()
+        fonts = scaler.get_font_sizes()
         escaped = GLib.markup_escape_text(text)
         self.label.set_markup(
-            f'<span font="24" foreground="#A0FFA0" font_family="DS-Digital">{escaped}</span>'
+            f'<span font="{fonts["main"]}" foreground="#A0FFA0" font_family="DS-Digital">{escaped}</span>'
         )
     
     def on_key_press(self, widget, event):
@@ -385,28 +468,32 @@ class AlarmGUI(Gtk.Window):
         return False  # Allow other keys
 
     def apply_css(self):
-        css = b"""
-        window { background: #404045; }
-        #alarm_text { 
+        scaler = ScreenScaler()
+        fonts = scaler.get_font_sizes()
+        button_font = scaler.scale_font(11)
+        
+        css = f"""
+        window {{ background: #404045; }}
+        #alarm_text {{ 
             font-family: "DS-Digital"; 
             color: #A0FFA0; 
-        }
-        .alarm_button {
+        }}
+        .alarm_button {{
             font-family: "DS-Digital";
-            font-size: 11px;
+            font-size: {button_font}px;
             background: #404045;
             color: #A0FFA0;
             border: 1px solid #23FF23;
             font-weight: bold;
-        }
-        .alarm_button:hover  { background: #505055; }
-        .alarm_button:active { background: #A0FFA0; }
-        .alarm_button:focus {
+        }}
+        .alarm_button:hover  {{ background: #505055; }}
+        .alarm_button:active {{ background: #A0FFA0; }}
+        .alarm_button:focus {{
             background: #505055;
             border: 2px solid #23FF23;
             box-shadow: 0 0 2px #23FF23;
-        }
-        """
+        }}
+        """.encode()
         provider = Gtk.CssProvider()
         provider.load_from_data(css)
         Gtk.StyleContext.add_provider_for_screen(
