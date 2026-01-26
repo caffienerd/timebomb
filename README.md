@@ -125,14 +125,14 @@ If you want TimeBomb to start automatically on login, create a systemd user serv
 
 ```ini
 [Unit]
-Description=Timebomb Python Script
+Description=TimeBomb - Floating Timer/Stopwatch
 After=graphical-session.target
 
 [Service]
 Environment=GDK_BACKEND=x11
 Environment=DISPLAY=:0
-WorkingDirectory=%h/_projects/01_python/timebomb/python/
-ExecStart=/usr/bin/python3 %h/_projects/01_python/timebomb/python/timebomb.py
+WorkingDirectory=$PYTHON_DIR
+ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
 Restart=always
 RestartSec=2
 
@@ -207,6 +207,9 @@ Just delete the folder. If you added it to startup, remove the shortcut from the
 
 No reason, it's just that the name was available!
 
+## Why Win/Super key?
+TimeBomb uses Win+key combos because it's the only modifier not heavily used by applications. Ctrl, Alt, and Shift would conflict with browser shortcuts, terminal commands, and app hotkeys.
+
 ## Technical details
 
 ### Linux
@@ -246,6 +249,8 @@ MIT - do whatever you want with it
 If you find bugs or want features, open an issue. PRs welcome.
 
 Especially interested in hearing if it works on other Linux distros/DEs!
+
+
 
 ## Credits
 TimeBomb uses the DS-Digital font by Dusit Supasawat for the retro timer display.
