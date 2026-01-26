@@ -34,7 +34,7 @@ detect_package_manager() {
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="sudo zypper install -y"
-        PACKAGES="python3 gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig"
+        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel gtk3 python3-gobject pulseaudio-utils fontconfig"
     else
         echo "ERROR: Could not detect package manager!"
         echo "Supported: apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch), zypper (openSUSE)"
