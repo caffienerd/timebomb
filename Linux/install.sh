@@ -81,34 +81,29 @@ else
 fi
 
 echo ""
-echo "[4/8] Installing DS Digital font (required for timer display)..."
+echo "[4/8] Installing DS Digital fonts (required for timer display)..."
 FONT_DIR="$HOME/.local/share/fonts"
-FONT_SOURCE="$SCRIPT_DIR/assets/font/DS-DIGI.TTF"
-FONT_DEST="$FONT_DIR/DS-DIGI.TTF"
+FONT_SOURCE_DIR="$SCRIPT_DIR/assets/font"
 
-# Check if font source exists in repo
-if [ ! -f "$FONT_SOURCE" ]; then
-    echo "ERROR: Font file not found at $FONT_SOURCE"
+# Check if font source directory exists in repo
+if [ ! -d "$FONT_SOURCE_DIR" ]; then
+    echo "ERROR: Font directory not found at $FONT_SOURCE_DIR"
     echo "Please ensure the repository is complete."
     exit 1
 fi
 
 mkdir -p "$FONT_DIR"
 
-# Check if font already installed
-if [ -f "$FONT_DEST" ]; then
-    echo "✓ DS Digital font already installed"
-else
-    echo "Copying DS Digital font..."
-    cp "$FONT_SOURCE" "$FONT_DEST" || {
-        echo "ERROR: Failed to copy font"
-        exit 1
-    }
-    
-    # Refresh font cache
-    fc-cache -f "$FONT_DIR" 2>/dev/null
-    echo "✓ DS Digital font installed"
-fi
+# Copy all DS Digital font variants
+echo "Copying DS Digital font variants..."
+cp "$FONT_SOURCE_DIR"/DS-DIGI*.TTF "$FONT_DIR/" || {
+    echo "ERROR: Failed to copy fonts"
+    exit 1
+}
+
+# Refresh font cache
+fc-cache -f "$FONT_DIR" 2>/dev/null
+echo "✓ DS Digital fonts installed (regular, bold, italic, thin)"
 
 echo ""
 echo "[5/8] Creating Python virtual environment..."
