@@ -98,10 +98,10 @@ Linux/
 ├── uninstall.sh
 ├── assets/
 │   ├── font/
-│   │   ├── DS-DIGI.TFF
-│   │   ├── DS-DIGIB.TFF
-│   │   ├── DS-DIGIT.TFF
-│   │   ├── DS-DIGIT.TFF
+│   │   ├── DS-DIGI.TTF
+│   │   ├── DS-DIGIB.TTF
+│   │   ├── DS-DIGII.TTF
+│   │   ├── DS-DIGIT.TTF
 │   │   └── DS-DIGITAL-LICENSE.txt
 │   ├── sounds/
 │   │   ├── adjust.wav
@@ -115,7 +115,7 @@ Linux/
 │   └── state/
 │       └── state.ini
 └── python/
-    ├── venv
+    ├── venv/
     ├── app_manager.py
     ├── gui.py
     ├── hotkey.py
@@ -276,7 +276,7 @@ MIT - do whatever you want with it
 
 If you find bugs or want features, open an issue. PRs welcome.
 
-Especially interested in hearing if it worked tou you!!
+Especially interested in hearing if it worked for you!!
 
 
 
@@ -289,6 +289,6 @@ TimeBomb uses the DS-Digital font by Dusit Supasawat for the retro timer display
 - **Author:** Dusit Supasawat
 - **License:** Freeware for personal and commercial use
 - **Source:** [dafont.com/ds-digital.font](https://www.dafont.com/ds-digital.font)
-- **Location:** `Linux/assets/fonts/`
+- **Location:** `Linux/assets/font/`
 
 This font is included for convenience and is property of its original author.
