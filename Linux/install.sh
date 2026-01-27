@@ -204,17 +204,22 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 [Unit]
 Description=TimeBomb - Floating Timer/Stopwatch
 After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
-Environment=GDK_BACKEND=x11
+Type=simple
+ExecStartPre=/bin/sleep 5
 Environment=DISPLAY=:0
+Environment=XAUTHORITY=%h/.Xauthority
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+Environment=GDK_BACKEND=x11
 WorkingDirectory=$PYTHON_DIR
 ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
 Restart=always
 RestartSec=2
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 EOF
     
     systemctl --user daemon-reload
