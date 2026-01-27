@@ -189,52 +189,36 @@ echo "✓ Directories created"
 
 echo ""
 echo "======================================"
-echo "   Systemd Autostart Setup"
+echo "   Autostart Setup"
 echo "======================================"
 read -p "Do you want TimeBomb to start automatically on login? (y/n): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    SYSTEMD_DIR="$HOME/.config/systemd/user"
-    SERVICE_FILE="$SYSTEMD_DIR/timebomb.service"
+    AUTOSTART_DIR="$HOME/.config/autostart"
+    DESKTOP_FILE="$AUTOSTART_DIR/timebomb.desktop"
     
-    mkdir -p "$SYSTEMD_DIR"
+    mkdir -p "$AUTOSTART_DIR"
     
-    cat > "$SERVICE_FILE" <<EOF
-[Unit]
-Description=TimeBomb - Floating Timer/Stopwatch
-After=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-Type=simple
-ExecStartPre=/bin/sleep 5
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=%h/.Xauthority
-Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
-Environment=GDK_BACKEND=x11
-WorkingDirectory=$PYTHON_DIR
-ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=graphical-session.target
+    cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Type=Application
+Name=TimeBomb
+Comment=Floating Timer/Stopwatch
+Exec=env GDK_BACKEND=x11 $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
 EOF
     
-    systemctl --user daemon-reload
-    systemctl --user enable timebomb.service
+    chmod +x "$DESKTOP_FILE"
     
-    echo "✓ Systemd service created and enabled (using X11 backend for stability)"
+    echo "✓ Autostart entry created at: $DESKTOP_FILE"
     echo ""
-    echo "Service commands:"
-    echo "  Start:   systemctl --user start timebomb.service"
-    echo "  Stop:    systemctl --user stop timebomb.service"
-    echo "  Status:  systemctl --user status timebomb.service"
-    echo "  Restart: systemctl --user restart timebomb.service"
-    echo "  Disable: systemctl --user disable timebomb.service"
+    echo "TimeBomb will start automatically on next login."
     echo ""
-    echo "To view logs: journalctl --user -u timebomb.service -f"
+    echo "To disable autostart later:"
+    echo "  rm $DESKTOP_FILE"
 else
     echo "⊘ Skipping autostart setup"
     echo ""
