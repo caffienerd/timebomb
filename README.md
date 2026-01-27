@@ -142,40 +142,36 @@ The install script handles:
 
 **Important:** You'll need to log out and back in after installation for the `input` group permissions to take effect.
 
-#### Autostart Configuration (systemd)
+#### Autostart Configuration
 
-If you want TimeBomb to start automatically on login, create a systemd user service:
+The install script can optionally set up TimeBomb to start automatically on login using XDG autostart (works on all distros and desktop environments).
 
-**Location:** `~/.config/systemd/user/timebomb.service`
+If you skipped autostart during installation and want to enable it later:
 
-```ini
-[Unit]
-Description=TimeBomb - Floating Timer/Stopwatch
-After=graphical-session.target
+**Location:** `~/.config/autostart/timebomb.desktop`
 
-[Service]
-Environment=GDK_BACKEND=x11
-Environment=DISPLAY=:0
-WorkingDirectory=$PYTHON_DIR
-ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
-Restart=always
-RestartSec=2
+```bash
+mkdir -p ~/.config/autostart
 
-[Install]
-WantedBy=default.target
+cat > ~/.config/autostart/timebomb.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=TimeBomb
+Comment=Floating Timer/Stopwatch
+Exec=env GDK_BACKEND=x11 /path/to/timebomb/Linux/python/venv/bin/python3 /path/to/timebomb/Linux/python/timebomb.py
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+chmod +x ~/.config/autostart/timebomb.desktop
 ```
 
-**⚠️ Warning about `RestartSec`:** The restart delay is set to 2 seconds. Setting it too low (like 0.5s) can cause issues if the script crashes repeatedly - systemd might kill it thinking it's misbehaving. 2 seconds is a safe balance.
+**Note:** Replace `/path/to/timebomb/` with your actual TimeBomb installation directory.
 
-Enable and start the service:
+To disable autostart:
 ```bash
-systemctl --user enable timebomb.service
-systemctl --user start timebomb.service
-```
-
-Check status:
-```bash
-systemctl --user status timebomb.service
+rm ~/.config/autostart/timebomb.desktop
 ```
 
 ### Windows
