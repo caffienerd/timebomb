@@ -1,6 +1,14 @@
 # TimeBomb!
 
-A floating stopwatch and timer for Linux and Windows that stays on top of everything - even fullscreen apps. Controlled entirely with Win+key shortcuts.
+<div align="center">
+
+![TimeBomb in action](screenshots/timer_over_a_game.png)
+
+*A floating stopwatch and timer for Linux and Windows that stays on top of everything - even fullscreen apps.*
+
+</div>
+
+---
 
 ## What is this?
 
@@ -14,6 +22,15 @@ It's basically a tiny floating window you can drag anywhere, and it just works.
 
 ## Features
 
+<div align="center">
+
+| Stopwatch Mode | Timer Mode |
+|:--------------:|:----------:|
+| ![Stopwatch](screenshots/stopwatch_closeup.png) | ![Timer](screenshots/timer_closeup.png) |
+| Counts up from 00:00 | Counts down with end-time preview |
+
+</div>
+
 - **Stopwatch mode** - counts up from 00:00
 - **Timer mode** - counts down from any time you set
 - **Always on top** - even over fullscreen apps
@@ -24,6 +41,14 @@ It's basically a tiny floating window you can drag anywhere, and it just works.
 - **Remembers position** - window stays where you put it
 - **Freezing feature** - hold Win after a keybind to freeze the timer/stopwatch for precise control and flow
 - **Cross-platform** - works on both Linux and Windows
+
+<div align="center">
+
+![Alarm](screenshots/alarm_message.png)
+
+*Persistent alarm when timer completes - won't stop until you dismiss it*
+
+</div>
 
 ## Platform Support
 
