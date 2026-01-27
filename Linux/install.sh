@@ -22,8 +22,13 @@ detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="sudo apt install -y"
-        PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-        PACKAGES="python3 python${PYTHON_VERSION}-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
+        # Get Python version dynamically for Debian/Ubuntu
+        PYTHON_VERSION=$(python3 --version 2>/dev/null | cut -d' ' -f2 | cut -d'.' -f1,2)
+        if [ -z "$PYTHON_VERSION" ]; then
+            PYTHON_VERSION="3"
+        fi
+        PACKAGES="python3 python${PYTHON_VERSION}-venv python3-pip libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
+        # Note: gtk-layer-shell may need to be installed separately on some systems
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
@@ -71,10 +76,16 @@ echo "[3/8] Installing system dependencies..."
 read -p "Install system packages? This requires sudo. (y/n): " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    $PKG_INSTALL $PACKAGES || {
-        echo "WARNING: Some packages failed to install."
-        echo "TimeBomb may not work properly without all dependencies."
-    }
+    echo "Installing: $PACKAGES"
+    $PKG_INSTALL $PACKAGES
+    
+    # For Debian/Ubuntu, try to install gtk-layer-shell separately if available
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        echo ""
+        echo "Attempting to install gtk-layer-shell (may not be available in all repos)..."
+        sudo apt install -y gtk-layer-shell 2>/dev/null || echo "Note: gtk-layer-shell not available in standard repos (this is optional)"
+    fi
+    
     echo "✓ System packages installed"
 else
     echo "⊘ Skipped system package installation"
@@ -113,10 +124,30 @@ if [ -d "$VENV_DIR" ]; then
     rm -rf "$VENV_DIR"
 fi
 
+# Double-check that venv package is installed
+if [ "$PKG_MANAGER" = "apt" ]; then
+    PYTHON_VERSION=$(python3 --version 2>/dev/null | cut -d' ' -f2 | cut -d'.' -f1,2)
+    VENV_PKG="python${PYTHON_VERSION}-venv"
+    
+    if ! dpkg -l | grep -q "^ii.*$VENV_PKG"; then
+        echo "Installing $VENV_PKG package..."
+        sudo apt install -y "$VENV_PKG" || {
+            echo "ERROR: Failed to install $VENV_PKG"
+            echo "Try manually: sudo apt install -y $VENV_PKG"
+            exit 1
+        }
+    fi
+fi
+
 python3 -m venv "$VENV_DIR" || {
     echo "ERROR: Failed to create virtual environment!"
-    echo "Make sure python3-venv is installed:"
-    echo "  $PKG_INSTALL python3-venv"
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        echo "Make sure python3-venv is installed:"
+        echo "  sudo apt install -y python${PYTHON_VERSION}-venv"
+    else
+        echo "Make sure python3-venv is installed:"
+        echo "  $PKG_INSTALL python3-venv"
+    fi
     exit 1
 }
 echo "✓ Virtual environment created at: $VENV_DIR"
