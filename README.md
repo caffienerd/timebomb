@@ -53,9 +53,8 @@ It's basically a tiny floating window you can drag anywhere, and it just works.
 ## Platform Support
 
 ### Linux
-- **Tested on:** Fedora KDE Plasma (Wayland/X11)
-- **Should work on:** Other distros, but not tested - let me know if you try it!
-- Uses GtkLayerShell for proper Wayland overlay support
+- **Tested on:** Fedora, openSUSE tumbleweed, Debian (Linux Mint), Arch (EndeavourOS)
+- Uses GtkLayerShell for proper "always on top" overlay support, even on fullscreen apps and games.
 - Direct keyboard access via evdev
 
 ### Windows
@@ -95,7 +94,15 @@ Try it: Press `Win + Grave` to show TimeBomb, then keep Win held - notice how th
 **File structure:**
 ```
 Linux/
+├── install.sh
+├── uninstall.sh
 ├── assets/
+│   ├── font/
+│   │   ├── DS-DIGI.TFF
+│   │   ├── DS-DIGIB.TFF
+│   │   ├── DS-DIGIT.TFF
+│   │   ├── DS-DIGIT.TFF
+│   │   └── DS-DIGITAL-LICENSE.txt
 │   ├── sounds/
 │   │   ├── adjust.wav
 │   │   ├── alarm.wav
@@ -108,6 +115,7 @@ Linux/
 │   └── state/
 │       └── state.ini
 └── python/
+    ├── venv
     ├── app_manager.py
     ├── gui.py
     ├── hotkey.py
@@ -119,7 +127,7 @@ Linux/
 Dependencies:
 - Python 3
 - GTK 3
-- GtkLayerShell (for Wayland overlay support)
+- GtkLayerShell
 - evdev
 - PulseAudio (for sounds)
 
@@ -251,11 +259,10 @@ TimeBomb uses Win+key combos because it's the only modifier not heavily used by 
 ### Linux
 - Requires your user to be in the `input` group
 - Won't work over certain system modals (lockscreen, etc.)
-- Keybinds may conflict with system shortcuts (add custom shortcuts for a cheap workaround as mentioned in the note)
-- Only tested on Fedora KDE Plasma - other distros might work but YMMV
+- Keybinds conflicts with system shortcuts (add custom shortcuts for a cheap workaround as mentioned in the note above)
 
 ### Windows
-- None currently - suppression works perfectly!
+- None currently - suppression works perfectly! It's just that the windows version is not polished well.
 
 ## TODO
 
@@ -269,7 +276,7 @@ MIT - do whatever you want with it
 
 If you find bugs or want features, open an issue. PRs welcome.
 
-Especially interested in hearing if it works on other Linux distros/DEs!
+Especially interested in hearing if it worked tou you!!
 
 
 
