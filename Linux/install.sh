@@ -27,7 +27,7 @@ detect_package_manager() {
         if [ -z "$PYTHON_VERSION" ]; then
             PYTHON_VERSION="3"
         fi
-        PACKAGES="python3 python${PYTHON_VERSION}-venv python3-pip libcairo2-dev pkg-config python3-dev libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
+        PACKAGES="python3 python${PYTHON_VERSION}-venv python3-pip libcairo2-dev pkg-config python3-dev libgirepository1.0-dev gir1.2-gtk-3.0 libgtk-3-0 python3-gi pulseaudio-utils fontconfig"
         # Note: gtk-layer-shell may need to be installed separately on some systems
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
