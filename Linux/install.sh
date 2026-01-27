@@ -22,7 +22,8 @@ detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="sudo apt install -y"
-        PACKAGES="python3 python3-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
+        PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+        PACKAGES="python3 python${PYTHON_VERSION}-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
