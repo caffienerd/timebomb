@@ -159,7 +159,7 @@ echo "✓ Virtual environment created at: $VENV_DIR"
 echo ""
 echo "[6/8] Installing Python packages in venv..."
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install evdev PyGObject || {
+"$VENV_DIR/bin/pip" install evdev PyGObject pyudev || {
     echo "ERROR: Failed to install Python packages!"
     echo "This usually means system dependencies are missing."
     exit 1
