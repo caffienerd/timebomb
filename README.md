@@ -1,3 +1,11 @@
+# ⚠️ WARNING: TESTING BRANCH
+
+**You are on the `testing` branch - this code is unstable and may be broken!**
+
+**For stable code, use the `main` branch:**
+```bash
+git checkout main
+```
 # TimeBomb!
 
 <div align="center">
