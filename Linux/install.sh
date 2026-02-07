@@ -5,19 +5,46 @@ echo "   TimeBomb Installation Script"
 echo "======================================"
 echo ""
 
-# Check if running as root
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+
+if [ "$CURRENT_BRANCH" = "testing" ]; then
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║                ⚠️  WARNING WARNING WARNING ⚠️              ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "  YOU ARE INSTALLING FROM THE 'testing' BRANCH!"
+    echo ""
+    echo "  This branch contains:"
+    echo "    - UNSTABLE code that may be broken"
+    echo "    - EXPERIMENTAL features that may crash"
+    echo "    - BUGS that could cause system issues"
+    echo ""
+    echo "  For stable code, switch to 'main' branch:"
+    echo "    git checkout main"
+    echo ""
+    read -p "Do you REALLY want to continue with 'testing' branch? (yes/no): " -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        echo "Installation cancelled. Switch to main branch:"
+        echo "  git checkout main"
+        echo "  ./install.sh"
+        exit 0
+    fi
+    echo "⚠️  Proceeding with TESTING branch at your own risk..."
+    echo ""
+fi
+
 if [ "$EUID" -eq 0 ]; then 
    echo "ERROR: Do not run this script as root!"
    echo "Run as your normal user instead."
    exit 1
 fi
 
-# Get the script directory (this is the Linux/ folder)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PYTHON_DIR="$SCRIPT_DIR/python"
 VENV_DIR="$PYTHON_DIR/venv"
 
-# Detect package manager and distro
 detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
@@ -31,7 +58,6 @@ detect_package_manager() {
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
         PACKAGES="python gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig"
-        # Arch has pipewire-pulse conflict - handle it
         ARCH_AUDIO_CONFLICT=true
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
@@ -72,7 +98,6 @@ echo "[3/8] Installing system dependencies..."
 read -p "Install system packages? This requires sudo. (y/n): " -n 1 -r
 echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    # Special handling for Arch Linux audio conflicts
     if [ "$ARCH_AUDIO_CONFLICT" = true ]; then
         echo ""
         echo "⚠️  ARCH LINUX DETECTED"
@@ -88,14 +113,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ $REPLY == "1" ]]; then
             echo "Using pipewire-pulse (already installed)"
             echo "Removing pulseaudio from package list..."
-            # Just install without pulseaudio - pipewire-pulse provides paplay
             sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig || {
                 echo "WARNING: Some packages failed to install."
                 echo "TimeBomb may not work properly without all dependencies."
             }
         else
             echo "Switching to pulseaudio..."
-            # This will remove pipewire-pulse and install pulseaudio
             sudo pacman -S --needed pulseaudio || {
                 echo "WARNING: Failed to install pulseaudio."
             }
@@ -104,7 +127,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             }
         fi
     else
-        # Non-Arch systems - install normally
         $PKG_INSTALL $PACKAGES || {
             echo "WARNING: Some packages failed to install."
             echo "TimeBomb may not work properly without all dependencies."
@@ -121,7 +143,6 @@ echo "[4/8] Installing DS Digital fonts (required for timer display)..."
 FONT_DIR="$HOME/.local/share/fonts"
 FONT_SOURCE_DIR="$SCRIPT_DIR/assets/font"
 
-# Check if font source directory exists in repo
 if [ ! -d "$FONT_SOURCE_DIR" ]; then
     echo "ERROR: Font directory not found at $FONT_SOURCE_DIR"
     echo "Please ensure the repository is complete."
@@ -130,14 +151,12 @@ fi
 
 mkdir -p "$FONT_DIR"
 
-# Copy all DS Digital font variants
 echo "Copying DS Digital font variants..."
 cp "$FONT_SOURCE_DIR"/DS-DIGI*.TTF "$FONT_DIR/" || {
     echo "ERROR: Failed to copy fonts"
     exit 1
 }
 
-# Refresh font cache
 fc-cache -f "$FONT_DIR" 2>/dev/null
 echo "✓ DS Digital fonts installed (regular, bold, italic, thin)"
 
@@ -159,7 +178,7 @@ echo "✓ Virtual environment created at: $VENV_DIR"
 echo ""
 echo "[6/8] Installing Python packages in venv..."
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install evdev PyGObject || {
+"$VENV_DIR/bin/pip" install evdev PyGObject pyudev || {
     echo "ERROR: Failed to install Python packages!"
     echo "This usually means system dependencies are missing."
     exit 1
@@ -191,6 +210,24 @@ echo ""
 echo "======================================"
 echo "   Autostart Setup"
 echo "======================================"
+
+if [ "$CURRENT_BRANCH" = "testing" ]; then
+    echo ""
+    echo "╔════════════════════════════════════════════════════════════╗"
+    echo "║           ⚠️  TESTING BRANCH AUTOSTART WARNING ⚠️          ║"
+    echo "╚════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "  You are about to enable autostart for UNSTABLE code!"
+    echo ""
+    echo "  This means:"
+    echo "    - Broken code will run on EVERY login"
+    echo "    - Your system may become unstable"
+    echo "    - You'll need to manually disable it if it breaks"
+    echo ""
+    echo "  STRONGLY RECOMMENDED: Do NOT enable autostart on testing branch"
+    echo ""
+fi
+
 read -p "Do you want TimeBomb to start automatically on login? (y/n): " -n 1 -r
 echo ""
 
