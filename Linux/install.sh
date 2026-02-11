@@ -49,20 +49,20 @@ detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="sudo apt install -y"
-        PACKAGES="python3 python3-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig"
+        PACKAGES="python3 python3-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig x11-utils"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
-        PACKAGES="python3 python3-devel gcc cairo-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig"
+        PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig xorg-x11-utils"
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
-        PACKAGES="python gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig"
+        PACKAGES="python gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig xorg-xdpyinfo"
         ARCH_AUDIO_CONFLICT=true
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="sudo zypper install -y"
-        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig "
+        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
     else
         echo "ERROR: Could not detect package manager!"
         echo "Supported: apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch), zypper (openSUSE)"
@@ -75,6 +75,7 @@ detect_package_manager() {
         echo "  - Python GObject bindings"
         echo "  - PulseAudio utilities"
         echo "  - fontconfig"
+        echo "  - xdpyinfo or xset (X11 utilities)"
         exit 1
     fi
     
@@ -113,7 +114,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ $REPLY == "1" ]]; then
             echo "Using pipewire-pulse (already installed)"
             echo "Removing pulseaudio from package list..."
-            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig || {
+            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
                 echo "TimeBomb may not work properly without all dependencies."
             }
@@ -122,7 +123,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             sudo pacman -S --needed pulseaudio || {
                 echo "WARNING: Failed to install pulseaudio."
             }
-            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig || {
+            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
             }
         fi
@@ -204,6 +205,7 @@ fi
 echo ""
 echo "[8/8] Creating directories..."
 mkdir -p "$SCRIPT_DIR/assets/state"
+mkdir -p "$SCRIPT_DIR/assets/logs"
 echo "✓ Directories created"
 
 echo ""
@@ -237,27 +239,29 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     mkdir -p "$AUTOSTART_DIR"
     
+    # Increased delay to 20 seconds for more reliable startup
     cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TimeBomb
 Comment=Floating Timer/Stopwatch
-Exec=bash -c "sleep 12 && env GDK_BACKEND=x11 $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py >> $SCRIPT_DIR/assets/logs/autostart.log 2>&1"
+Exec=bash -c "sleep 20 && cd $PYTHON_DIR && $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py >> $SCRIPT_DIR/assets/logs/autostart.log 2>&1"
 Terminal=false
 StartupNotify=false
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=12
+X-GNOME-Autostart-Delay=20
 Categories=Utility;
 Keywords=timer;stopwatch;clock;
 EOF
 
-chmod 644 "$DESKTOP_FILE"
+    chmod 644 "$DESKTOP_FILE"
         
     echo "✓ Autostart entry created at: $DESKTOP_FILE"
     echo ""
-    echo "TimeBomb will start automatically on next login."
+    echo "TimeBomb will start automatically 20 seconds after login."
+    echo "(Increased from 12s to ensure display is ready)"
     echo ""
     echo "To disable autostart later:"
     echo "  rm $DESKTOP_FILE"

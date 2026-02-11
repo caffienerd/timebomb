@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-import gi
 import sys
 import time
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
-
-from gui import AppGUI
-from app_manager import AppManager
-from hotkey import HotkeyManager
+# Force X11 backend - MUST be before importing Gtk
+os.environ['GDK_BACKEND'] = 'x11'
 
 def setup_logging():
     """Setup logging to file and console"""
@@ -49,24 +45,100 @@ def cleanup_old_logs(log_dir, days=30):
     except Exception as e:
         print(f"Warning: Could not clean up old logs: {e}")
 
+def wait_for_display(logger, max_retries=30, retry_delay=1):
+    """Wait for X11 display to be available before importing GTK"""
+    logger.info("Waiting for display to be available...")
+    
+    for i in range(max_retries):
+        # Check if DISPLAY environment variable is set
+        display_env = os.environ.get('DISPLAY')
+        if not display_env:
+            logger.warning(f"DISPLAY not set (attempt {i+1}/{max_retries})")
+            time.sleep(retry_delay)
+            continue
+        
+        # Try to connect to X server using xset or a simple test
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['xset', 'q'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=2
+            )
+            if result.returncode == 0:
+                logger.info(f"Display available at {display_env} (attempt {i+1}/{max_retries})")
+                return True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            # xset not available or timed out, try alternative method
+            try:
+                # Alternative: try to open a connection using xlib
+                import subprocess
+                result = subprocess.run(
+                    ['xdpyinfo'],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    logger.info(f"Display available at {display_env} (attempt {i+1}/{max_retries})")
+                    return True
+            except:
+                pass
+        except Exception as e:
+            logger.debug(f"Display check error: {e}")
+        
+        logger.info(f"Waiting for display... (attempt {i+1}/{max_retries})")
+        time.sleep(retry_delay)
+    
+    logger.error("Could not connect to display after waiting. No display available?")
+    return False
+
 def main():
     logger = setup_logging()
     logger.info("=" * 60)
     logger.info("TimeBomb starting...")
     
-    # Wait for display to be available (useful on autostart)
-    max_retries = 20  # Increased from 10
-    retry_delay = 1
-    
-    for i in range(max_retries):
-        if Gtk.init_check(sys.argv):
-            logger.info(f"GTK initialized successfully (attempt {i+1}/{max_retries})")
-            break
-        logger.warning(f"Waiting for display... ({i+1}/{max_retries})")
-        time.sleep(retry_delay)
-    else:
-        logger.error("Could not initialize GTK after waiting. No display available?")
+    # Wait for display BEFORE importing GTK
+    if not wait_for_display(logger):
+        logger.error("Failed to connect to display. Exiting.")
         sys.exit(1)
+    
+    # NOW it's safe to import GTK
+    try:
+        import gi
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import Gtk, Gdk
+        logger.info("GTK imported successfully")
+    except Exception as e:
+        logger.error(f"Failed to import GTK: {e}")
+        sys.exit(1)
+    
+    # Verify GTK can initialize
+    try:
+        if not Gtk.init_check(None)[0]:
+            logger.error("GTK initialization check failed")
+            sys.exit(1)
+        logger.info("GTK initialized successfully")
+    except Exception as e:
+        logger.error(f"GTK initialization error: {e}")
+        sys.exit(1)
+    
+    # Verify display is accessible
+    try:
+        display = Gdk.Display.get_default()
+        if display is None:
+            logger.error("No default display available")
+            sys.exit(1)
+        logger.info(f"Display available: {display.get_name()}")
+    except Exception as e:
+        logger.error(f"Failed to get display: {e}")
+        sys.exit(1)
+    
+    # Import application modules (after GTK is ready)
+    from gui import AppGUI
+    from app_manager import AppManager
+    from hotkey import HotkeyManager
     
     # Initialize components (declare variables first to avoid UnboundLocalError)
     gui = None

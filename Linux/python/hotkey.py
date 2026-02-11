@@ -61,12 +61,12 @@ class HotkeyManager:
                         keys = caps[ecodes.EV_KEY]
                         if ecodes.KEY_A in keys and ecodes.KEY_Z in keys:
                             keyboards[path] = device
-                            print(f"[HOTKEY] Found keyboard: {device.name} at {path}")
+                            # REMOVED: print statement here - only log changes
                 except Exception:
                     # Skip devices we can't access
                     pass
         except Exception as e:
-            print(f"[HOTKEY] Error scanning devices: {e}")
+            self.logger.error(f"Error scanning devices: {e}")
         
         return keyboards
     
@@ -81,7 +81,7 @@ class HotkeyManager:
                 self.device_queue.put(('scan_result', current_keyboards))
                 
             except Exception as e:
-                print(f"[HOTKEY] Scan thread error: {e}")
+                self.logger.error(f"Scan thread error: {e}")
             
             # Sleep 2 seconds before next scan
             time.sleep(2.0)
@@ -103,14 +103,14 @@ class HotkeyManager:
                         # Check for new devices
                         for path, device in current_keyboards.items():
                             if path not in self.devices:
-                                print(f"[HOTKEY] New keyboard detected: {device.name}")
+                                self.logger.info(f"New keyboard detected: {device.name} at {path}")
                                 self.devices[path] = device
                         
                         # Check for disconnected devices
                         disconnected = []
                         for path in list(self.devices.keys()):
                             if path not in current_keyboards:
-                                print(f"[HOTKEY] Keyboard disconnected: {path}")
+                                self.logger.info(f"Keyboard disconnected: {path}")
                                 disconnected.append(path)
                         
                         # Remove disconnected devices
@@ -121,7 +121,7 @@ class HotkeyManager:
                     break  # No more messages
         
         except Exception as e:
-            print(f"[HOTKEY] Queue processing error: {e}")
+            self.logger.error(f"Queue processing error: {e}")
         
         return True  # Continue timer
     
@@ -295,15 +295,15 @@ class HotkeyManager:
                     except OSError:
                         # Device disconnected - will be handled by scan thread
                         if dev_path in self.devices:
-                            print(f"[HOTKEY] Device disconnected: {dev_path}")
+                            self.logger.info(f"Device disconnected: {dev_path}")
                             del self.devices[dev_path]
                     
                     except Exception as e:
-                        print(f"[HOTKEY] Unexpected error on {dev_path}: {e}")
+                        self.logger.error(f"Unexpected error on {dev_path}: {e}")
             
             except Exception as e:
                 # Catch-all for select() errors
-                print(f"[HOTKEY] Select error: {e}")
+                self.logger.error(f"Select error: {e}")
                 time.sleep(0.5)
     
     def start(self):
@@ -312,7 +312,11 @@ class HotkeyManager:
         self.devices = self.find_keyboards()
         
         if not self.devices:
-            print("[HOTKEY] Warning: No keyboards found initially, but will keep scanning...")
+            self.logger.warning("No keyboards found initially, but will keep scanning...")
+        else:
+            # Log initial keyboards found
+            for path, device in self.devices.items():
+                self.logger.info(f"Found keyboard: {device.name} at {path}")
         
         self.running = True
         
@@ -327,7 +331,7 @@ class HotkeyManager:
         thread = threading.Thread(target=self.listen_thread, daemon=True)
         thread.start()
         
-        print("[HOTKEY] Hotkey manager started")
+        self.logger.info("Hotkey manager started")
         return True
     
     def stop(self):
@@ -346,4 +350,4 @@ class HotkeyManager:
                 pass
         
         self.devices.clear()
-        print("[HOTKEY] Hotkey manager stopped")
+        self.logger.info("Hotkey manager stopped")
