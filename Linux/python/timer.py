@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import subprocess
 from gui import AlarmGUI
+import logging
 
 class Timer:
     def __init__(self, gui, app_manager):
@@ -13,7 +14,9 @@ class Timer:
         self.running = False
         self.visible = False
         self.paused = False
-        
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing timer...")
+
         # Timer state
         self.timer_minutes = 3
         self.timer_seconds = 0

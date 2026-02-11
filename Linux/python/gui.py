@@ -3,6 +3,8 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
 import subprocess
 import os
+import logging
+
 
 # Try to import GtkLayerShell for Wayland overlay support
 try:
@@ -87,15 +89,19 @@ class AppGUI(Gtk.Window):
     def __init__(self):
         super().__init__()
         
-        # Initialize scaler first
+        # Initialize logger
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing GUI...")
+        
+        # Initialize scaler
         self.scaler = ScreenScaler()
         
         # Detect if we're on Wayland
         display = Gdk.Display.get_default()
         self.is_wayland = display and type(display).__name__ == 'GdkWaylandDisplay'
         
-        print(f"[GUI] Display type: {'Wayland' if self.is_wayland else 'X11'}")
-        print(f"[GUI] Layer Shell available: {HAS_LAYER_SHELL}")
+        self.logger.info(f"Display type: {'Wayland' if self.is_wayland else 'X11'}")
+        self.logger.info(f"Layer Shell available: {HAS_LAYER_SHELL}")
         
         # Window behavior - Basic setup first
         self.set_decorated(False)
@@ -157,10 +163,12 @@ class AppGUI(Gtk.Window):
 
         self.apply_css()
         self.enable_drag()
+        
+        self.logger.info("GUI initialized successfully")
 
     def _setup_layer_shell(self):
         """Setup Layer Shell for Wayland - puts window ABOVE fullscreen apps"""
-        print("[GUI] Configuring Layer Shell (Wayland overlay mode)")
+        self.logger.info("Configuring Layer Shell (Wayland overlay mode)")
         
         # Initialize layer shell for this window
         GtkLayerShell.init_for_window(self)
@@ -180,11 +188,11 @@ class AppGUI(Gtk.Window):
         # Disable exclusive zone (don't push other windows)
         GtkLayerShell.auto_exclusive_zone_enable(self)
         
-        print("[GUI] Layer Shell configured - window will be above fullscreen apps")
+        self.logger.info("Layer Shell configured - window will be above fullscreen apps")
     
     def _setup_fallback(self):
         """Fallback method for X11 or when Layer Shell unavailable"""
-        print("[GUI] Using fallback window configuration (X11 mode)")
+        self.logger.info("Using fallback window configuration (X11 mode)")
         
         # Use DOCK type hint - works reasonably on X11
         self.set_type_hint(Gdk.WindowTypeHint.DOCK)
@@ -372,6 +380,11 @@ class AppGUI(Gtk.Window):
 class AlarmGUI(Gtk.Window):
     def __init__(self, on_dismiss=None, on_reset=None, message="Beep, Beep turn it off."):
         super().__init__()
+        
+        # Initialize logger
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing Alarm GUI...")
+        
         self.on_dismiss = on_dismiss or (lambda: None)
         self.on_reset = on_reset or (lambda: None)
         
@@ -402,7 +415,7 @@ class AlarmGUI(Gtk.Window):
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, False)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, False)
             GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, False)
-            print("[ALARM] Using Layer Shell - will appear above fullscreen")
+            self.logger.info("Alarm using Layer Shell - will appear above fullscreen")
         else:
             self.set_type_hint(Gdk.WindowTypeHint.DOCK)
             self.set_keep_above(True)
@@ -452,6 +465,8 @@ class AlarmGUI(Gtk.Window):
         
         # Connect keyboard handler to block spacebar
         self.connect("key-press-event", self.on_key_press)
+        
+        self.logger.info("Alarm GUI initialized")
 
     def set_message(self, text):
         scaler = ScreenScaler()
@@ -503,15 +518,21 @@ class AlarmGUI(Gtk.Window):
         )
 
     def play_alarm(self):
-        # Get the python directory parent (timebomb root)
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        path = os.path.join(base_dir, "assets", "sounds", "alarm.wav")
-        if os.path.exists(path):
-            subprocess.Popen(["paplay", path],
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL)
+        try:
+            # Get the python directory parent (timebomb root)
+            base_dir = os.path.dirname(os.path.dirname(__file__))
+            path = os.path.join(base_dir, "assets", "sounds", "alarm.wav")
+            if os.path.exists(path):
+                subprocess.Popen(["paplay", path],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+            else:
+                self.logger.warning(f"Alarm sound file not found: {path}")
+        except Exception as e:
+            self.logger.error(f"Failed to play alarm sound: {e}", exc_info=True)
 
     def start_alarm_loop(self):
+        self.logger.info("Starting alarm loop")
         self.play_alarm()
         GLib.timeout_add(1000, self._loop)
 
@@ -522,15 +543,21 @@ class AlarmGUI(Gtk.Window):
         return False
 
     def stop_alarm(self):
-        subprocess.call(["pkill", "-f", "paplay.*alarm.wav"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            subprocess.call(["pkill", "-f", "paplay.*alarm.wav"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.logger.info("Alarm stopped")
+        except Exception as e:
+            self.logger.error(f"Failed to stop alarm: {e}", exc_info=True)
 
     def reset_and_dismiss(self):
+        self.logger.info("Alarm reset and dismissed")
         self.stop_alarm()
         self.on_reset()
         self.destroy()
 
     def dismiss(self):
+        self.logger.info("Alarm dismissed")
         self.stop_alarm()
         self.on_dismiss()
         self.destroy()

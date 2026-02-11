@@ -15,6 +15,9 @@ ENV/
 # State files (users will generate their own)
 Linux/assets/state/*.ini
 
+# Log files
+Linux/assets/logs/*.log
+
 # Windows state files
 windows/gui_state/*.ini
 

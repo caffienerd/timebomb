@@ -6,6 +6,8 @@ import configparser
 import subprocess
 from stopwatch import Stopwatch
 from timer import Timer # type: ignore
+import logging
+
 
 class AppManager:
     def __init__(self, gui):
@@ -13,6 +15,8 @@ class AppManager:
         self.stopwatch = Stopwatch(gui, self)
         self.timer = Timer(gui, self)
         self.mode = "stopwatch"
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing app manager...")
         
         # Get config file path relative to script location
         base_dir = os.path.dirname(os.path.dirname(__file__))

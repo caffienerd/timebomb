@@ -242,14 +242,19 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 Type=Application
 Name=TimeBomb
 Comment=Floating Timer/Stopwatch
-Exec=env GDK_BACKEND=x11 $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
+Exec=bash -c "sleep 12 && env GDK_BACKEND=x11 $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py >> $SCRIPT_DIR/assets/logs/autostart.log 2>&1"
 Terminal=false
 StartupNotify=false
+Hidden=false
+NoDisplay=false
 X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=12
+Categories=Utility;
+Keywords=timer;stopwatch;clock;
 EOF
-    
-    chmod +x "$DESKTOP_FILE"
-    
+
+chmod 644 "$DESKTOP_FILE"
+        
     echo "✓ Autostart entry created at: $DESKTOP_FILE"
     echo ""
     echo "TimeBomb will start automatically on next login."
@@ -284,4 +289,4 @@ echo "  Win + Backspace - Reset"
 echo "  Win + Esc       - Switch Timer/Stopwatch"
 echo "  Win + Up/Down   - Adjust timer (Timer mode only)"
 echo ""
-echo "Enjoy!! 🚀"
+echo "Enjoy!!"

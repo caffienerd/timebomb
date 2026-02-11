@@ -6,9 +6,13 @@ import select
 import threading
 import time
 import queue
+import logging
+
 
 class HotkeyManager:
     def __init__(self, app_manager):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing hotkey manager..")
         self.app_manager = app_manager
         self.devices = {}  # Changed to dict: path -> device
         self.running = False

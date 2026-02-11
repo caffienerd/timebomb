@@ -41,6 +41,7 @@ It's basically a tiny floating window you can drag anywhere, and it just works.
 - **Remembers position** - window stays where you put it
 - **Freezing feature** - hold Win after a keybind to freeze the timer/stopwatch for precise control and flow
 - **Cross-platform** - works on both Linux and Windows
+- **Comprehensive logging** - automatic error logging and autostart debugging
 
 <div align="center">
 
@@ -53,9 +54,10 @@ It's basically a tiny floating window you can drag anywhere, and it just works.
 ## Platform Support
 
 ### Linux
-- **Tested on:** Fedora, openSUSE tumbleweed, Debian (Linux Mint), Arch (EndeavourOS)
-- Uses GtkLayerShell for proper "always on top" overlay support, even on fullscreen apps and games.
+- **Tested on:** Fedora, openSUSE Tumbleweed, Debian (Linux Mint), Arch (EndeavourOS)
+- Uses GtkLayerShell for proper "always on top" overlay support, even on fullscreen apps and games
 - Direct keyboard access via evdev
+- Comprehensive logging system with automatic cleanup
 
 ### Windows
 - Uses AutoHotkey for system integration
@@ -94,16 +96,16 @@ Try it: Press `Win + Grave` to show TimeBomb, then keep Win held - notice how th
 **File structure:**
 ```
 Linux/
-├── install.sh
-├── uninstall.sh
+├── install.sh              # Automated installation script
+├── uninstall.sh            # Clean uninstallation script
 ├── assets/
-│   ├── font/
-│   │   ├── DS-DIGI.TTF
-│   │   ├── DS-DIGIB.TTF
-│   │   ├── DS-DIGII.TTF
-│   │   ├── DS-DIGIT.TTF
+│   ├── font/               # DS-Digital font variants
+│   │   ├── DS-DIGI.TTF     # Regular
+│   │   ├── DS-DIGIB.TTF    # Bold
+│   │   ├── DS-DIGII.TTF    # Italic
+│   │   ├── DS-DIGIT.TTF    # Thin
 │   │   └── DS-DIGITAL-LICENSE.txt
-│   ├── sounds/
+│   ├── sounds/             # Sound effects
 │   │   ├── adjust.wav
 │   │   ├── alarm.wav
 │   │   ├── pause.wav
@@ -112,29 +114,35 @@ Linux/
 │   │   ├── start.wav
 │   │   ├── switch_stopwatch.wav
 │   │   └── switch_timer.wav
-│   └── state/
-│       └── state.ini
+│   ├── state/              # Saved state (auto-generated)
+│   │   ├── .gitkeep
+│   │   └── state.ini       # Window position and mode
+│   └── logs/               # Application logs (auto-generated)
+│       ├── .gitkeep
+│       ├── timebomb_YYYYMMDD.log  # Daily logs
+│       └── autostart.log   # Autostart debug log
 └── python/
-    ├── venv/
-    ├── app_manager.py
-    ├── gui.py
-    ├── hotkey.py
-    ├── stopwatch.py
-    ├── timebomb.py
-    └── timer.py
+    ├── venv/               # Virtual environment (auto-generated)
+    ├── app_manager.py      # App state management
+    ├── gui.py              # GTK interface
+    ├── hotkey.py           # Keyboard listener
+    ├── stopwatch.py        # Stopwatch logic
+    ├── timebomb.py         # Main entry point
+    └── timer.py            # Timer logic
 ```
 
-Dependencies:
-- Python 3
+**Dependencies:**
+- Python 3.8+
 - GTK 3
 - GtkLayerShell
-- evdev
+- Python packages: evdev, PyGObject, pyudev
 - PulseAudio (for sounds)
 
+**Installation:**
 ```bash
 # Clone the repo
 git clone https://github.com/caffienerd/timebomb.git
-cd timebomb
+cd timebomb/Linux
 
 # Make install script executable
 chmod +x install.sh
@@ -144,42 +152,83 @@ chmod +x install.sh
 ```
 
 The install script handles:
-- Installing Python dependencies
+- Detecting your package manager (apt/dnf/pacman/zypper)
+- Installing system dependencies
+- Creating Python virtual environment
+- Installing Python packages (evdev, PyGObject, pyudev)
+- Installing DS-Digital fonts
 - Adding your user to the `input` group (required for keyboard access)
+- Creating log and state directories
 - Setting up autostart (optional)
 
-**Important:** You'll need to log out and back in after installation for the `input` group permissions to take effect.
+**Important:** You'll need to **log out and back in** after installation for the `input` group permissions to take effect.
 
 #### Autostart Configuration
 
-The install script can optionally set up TimeBomb to start automatically on login using XDG autostart (works on all distros and desktop environments).
+The install script can set up TimeBomb to start automatically on login using XDG autostart (works on all distros and desktop environments).
 
-If you skipped autostart during installation and want to enable it later:
+**Features:**
+- 12-second startup delay to ensure desktop environment is ready
+- Automatic retry logic (waits up to 20 seconds for display)
+- Comprehensive logging for debugging startup issues
+- Logs saved to `assets/logs/autostart.log`
 
-**Location:** `~/.config/autostart/timebomb.desktop`
+**Manual autostart setup:**
+
+If you skipped autostart during installation:
 
 ```bash
 mkdir -p ~/.config/autostart
 
-cat > ~/.config/autostart/timebomb.desktop <<EOF
+cat > ~/.config/autostart/timebomb.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=TimeBomb
 Comment=Floating Timer/Stopwatch
-Exec=env GDK_BACKEND=x11 /path/to/timebomb/Linux/python/venv/bin/python3 /path/to/timebomb/Linux/python/timebomb.py
+Exec=bash -c "sleep 12 && env GDK_BACKEND=x11 /path/to/timebomb/Linux/python/venv/bin/python3 /path/to/timebomb/Linux/python/timebomb.py >> /path/to/timebomb/Linux/assets/logs/autostart.log 2>&1"
 Terminal=false
 StartupNotify=false
+Hidden=false
+NoDisplay=false
 X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=12
+Categories=Utility;
+Keywords=timer;stopwatch;clock;
 EOF
 
-chmod +x ~/.config/autostart/timebomb.desktop
+chmod 644 ~/.config/autostart/timebomb.desktop
 ```
 
-**Note:** Replace `/path/to/timebomb/` with your actual TimeBomb installation directory.
+**Important:** Replace `/path/to/timebomb/` with your actual TimeBomb installation directory.
 
 To disable autostart:
 ```bash
 rm ~/.config/autostart/timebomb.desktop
+```
+
+#### Logging System
+
+TimeBomb includes comprehensive logging to help debug issues:
+
+- **Daily logs:** `assets/logs/timebomb_YYYYMMDD.log`
+  - One log file per day
+  - Automatic cleanup (keeps last 30 days)
+  - Contains all app events and errors
+
+- **Autostart log:** `assets/logs/autostart.log`
+  - Captures startup output when launched via autostart
+  - Useful for debugging boot issues
+
+**View logs:**
+```bash
+# View today's log
+tail -f ~/path/to/timebomb/Linux/assets/logs/timebomb_$(date +%Y%m%d).log
+
+# View autostart log
+cat ~/path/to/timebomb/Linux/assets/logs/autostart.log
+
+# List all logs
+ls -lh ~/path/to/timebomb/Linux/assets/logs/
 ```
 
 ### Windows
@@ -225,12 +274,57 @@ windows/
 
 ### Linux
 ```bash
+cd timebomb/Linux
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
+The uninstall script will:
+- Stop any running TimeBomb processes
+- Remove autostart entry
+- Remove virtual environment
+- Optionally remove DS-Digital fonts
+- Optionally remove you from the `input` group
+- Optionally remove state and log files
+
+Note: System packages (Python, GTK, etc.) are not removed.
+
 ### Windows
 Just delete the folder. If you added it to startup, remove the shortcut from the startup folder.
+
+## Troubleshooting
+
+### Linux
+
+**TimeBomb doesn't start on login:**
+- Check autostart log: `cat ~/path/to/timebomb/Linux/assets/logs/autostart.log`
+- Verify desktop file exists: `ls ~/.config/autostart/timebomb.desktop`
+- Check permissions: Desktop file should NOT be executable (`-rw-r--r--`)
+
+**Keyboard shortcuts not working:**
+- Ensure you're in the `input` group: `groups | grep input`
+- If not, run: `sudo usermod -a -G input $USER`
+- Log out and back in for changes to take effect
+
+**GTK initialization errors:**
+- Check if display is ready: The app waits up to 20 seconds for GTK to initialize
+- View logs to see retry attempts
+- If using autostart, ensure the 12-second delay is sufficient for your system
+
+**Viewing debug information:**
+```bash
+# Check if TimeBomb is running
+ps aux | grep timebomb
+
+# View real-time logs
+tail -f ~/path/to/timebomb/Linux/assets/logs/timebomb_$(date +%Y%m%d).log
+
+# Check autostart configuration
+cat ~/.config/autostart/timebomb.desktop
+```
+
+### Windows
+- None currently - suppression works perfectly! The Windows version is just not as polished.
 
 ## Why "TimeBomb"?
 
@@ -239,7 +333,7 @@ No reason, it's just that the name was available!
 ## Why Win/Super key?
 TimeBomb uses Win+key combos because it's the only modifier not heavily used by applications. Ctrl, Alt, and Shift would conflict with browser shortcuts, terminal commands, and app hotkeys.
 
-## Technical details
+## Technical Details
 
 ### Linux
 - Built with GTK 3 and Python
@@ -247,6 +341,8 @@ TimeBomb uses Win+key combos because it's the only modifier not heavily used by 
 - Direct keyboard access via evdev (no X11 dependencies)
 - Threaded keyboard listener to avoid blocking the GUI
 - Hot-plug support for USB keyboards
+- Comprehensive logging with automatic rotation and cleanup
+- Graceful startup with retry logic for autostart reliability
 
 ### Windows
 - Built with AutoHotkey
@@ -254,19 +350,20 @@ TimeBomb uses Win+key combos because it's the only modifier not heavily used by 
 - Simpler implementation than Linux version
 - Saves state to INI files
 
-## Known issues
+## Known Issues
 
 ### Linux
 - Requires your user to be in the `input` group
 - Won't work over certain system modals (lockscreen, etc.)
-- Keybinds conflicts with system shortcuts (add custom shortcuts for a cheap workaround as mentioned in the note above)
+- Keybind conflicts with system shortcuts (add custom shortcuts for a cheap workaround as mentioned in the note above)
 
 ### Windows
-- None currently - suppression works perfectly! It's just that the windows version is not polished well.
+- Windows version is functional but less polished than Linux version
 
 ## TODO
 
 - Built-in keybind suppression system for Linux
+- Polish Windows version
 
 ## License
 
@@ -277,8 +374,6 @@ MIT - do whatever you want with it
 If you find bugs or want features, open an issue. PRs welcome.
 
 Especially interested in hearing if it worked for you!!
-
-
 
 ## Credits
 TimeBomb uses the DS-Digital font by Dusit Supasawat for the retro timer display.

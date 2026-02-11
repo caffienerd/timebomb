@@ -4,9 +4,12 @@ import time
 from datetime import datetime
 import os
 import subprocess
+import logging
 
 class Stopwatch:
     def __init__(self, gui, app_manager):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Initializing stopwatch...")
         self.gui = gui
         self.app_manager = app_manager
         self.running = False
