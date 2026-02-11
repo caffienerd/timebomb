@@ -49,20 +49,20 @@ detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="sudo apt install -y"
-        PACKAGES="python3 python3-venv python3-pip gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig x11-utils"
+        PACKAGES="python3 python3-venv python3-pip libcairo2-dev gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig x11-utils"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
-        PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig xorg-x11-utils"
+        PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
-        PACKAGES="python gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig xorg-xdpyinfo"
+        PACKAGES="python cairo gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig xorg-xdpyinfo"
         ARCH_AUDIO_CONFLICT=true
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="sudo zypper install -y"
-        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
+        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel python3-cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
     else
         echo "ERROR: Could not detect package manager!"
         echo "Supported: apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch), zypper (openSUSE)"
