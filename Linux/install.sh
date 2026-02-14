@@ -114,7 +114,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ $REPLY == "1" ]]; then
             echo "Using pipewire-pulse (already installed)"
             echo "Removing pulseaudio from package list..."
-            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
+            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
                 echo "TimeBomb may not work properly without all dependencies."
             }
@@ -123,7 +123,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             sudo pacman -S --needed pulseaudio || {
                 echo "WARNING: Failed to install pulseaudio."
             }
-            sudo pacman -S --needed --noconfirm python gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
+            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
             }
         fi
@@ -210,7 +210,7 @@ echo "✓ Directories created"
 
 echo ""
 echo "======================================"
-echo "   Autostart Setup"
+echo "   Systemd Service Setup"
 echo "======================================"
 
 if [ "$CURRENT_BRANCH" = "testing" ]; then
@@ -234,42 +234,70 @@ read -p "Do you want TimeBomb to start automatically on login? (y/n): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    AUTOSTART_DIR="$HOME/.config/autostart"
-    DESKTOP_FILE="$AUTOSTART_DIR/timebomb.desktop"
+    SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+    SERVICE_FILE="$SYSTEMD_USER_DIR/timebomb.service"
     
-    mkdir -p "$AUTOSTART_DIR"
+    mkdir -p "$SYSTEMD_USER_DIR"
     
-    # Increased delay to 20 seconds for more reliable startup
-    cat > "$DESKTOP_FILE" <<EOF
-[Desktop Entry]
-Type=Application
-Name=TimeBomb
-Comment=Floating Timer/Stopwatch
-Exec=bash -c "sleep 20 && cd $PYTHON_DIR && $VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py >> $SCRIPT_DIR/assets/logs/autostart.log 2>&1"
-Terminal=false
-StartupNotify=false
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=20
-Categories=Utility;
-Keywords=timer;stopwatch;clock;
+    echo "Creating systemd user service..."
+    cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=TimeBomb - Floating Timer/Stopwatch
+Documentation=https://github.com/caffienerd/timebomb
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=$PYTHON_DIR
+Environment="GDK_BACKEND=x11"
+ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:$SCRIPT_DIR/assets/logs/service.log
+StandardError=append:$SCRIPT_DIR/assets/logs/service.log
+
+[Install]
+WantedBy=graphical-session.target
 EOF
 
-    chmod 644 "$DESKTOP_FILE"
-        
-    echo "✓ Autostart entry created at: $DESKTOP_FILE"
+    chmod 644 "$SERVICE_FILE"
+    
+    # Reload systemd user daemon
+    systemctl --user daemon-reload
+    
+    # Enable the service
+    systemctl --user enable timebomb.service
+    
+    echo "✓ Systemd service created at: $SERVICE_FILE"
+    echo "✓ Service enabled"
     echo ""
-    echo "TimeBomb will start automatically 20 seconds after login."
-    echo "(Increased from 12s to ensure display is ready)"
+    echo "TimeBomb will start automatically on your next login."
     echo ""
-    echo "To disable autostart later:"
-    echo "  rm $DESKTOP_FILE"
+    echo "Service management commands:"
+    echo "  Start now:         systemctl --user start timebomb.service"
+    echo "  Stop:              systemctl --user stop timebomb.service"
+    echo "  Restart:           systemctl --user restart timebomb.service"
+    echo "  Check status:      systemctl --user status timebomb.service"
+    echo "  View logs:         journalctl --user -u timebomb.service -f"
+    echo "  Disable autostart: systemctl --user disable timebomb.service"
+    echo ""
+    
+    read -p "Do you want to start TimeBomb now? (y/n): " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        systemctl --user start timebomb.service
+        echo "✓ TimeBomb started!"
+        echo ""
+        echo "Check status with: systemctl --user status timebomb.service"
+    fi
 else
-    echo "⊘ Skipping autostart setup"
+    echo "⊘ Skipping systemd service setup"
     echo ""
     echo "You can run TimeBomb manually with:"
     echo "  cd $PYTHON_DIR && env GDK_BACKEND=x11 $VENV_DIR/bin/python3 timebomb.py"
+    echo ""
+    echo "Or set up the service later by re-running this installer."
 fi
 
 echo ""
@@ -283,9 +311,6 @@ if [ "$NEED_LOGOUT" = true ]; then
     echo ""
 fi
 
-echo "To start TimeBomb now (if not using autostart):"
-echo "  cd $PYTHON_DIR && env GDK_BACKEND=x11 $VENV_DIR/bin/python3 timebomb.py"
-echo ""
 echo "Default keybinds (all use Win key):"
 echo "  Win + \`         - Toggle visibility"
 echo "  Win + Enter     - Pause/Resume"

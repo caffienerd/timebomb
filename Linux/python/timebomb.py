@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import sys
-import time
 import logging
 import os
 from pathlib import Path
@@ -45,66 +44,12 @@ def cleanup_old_logs(log_dir, days=30):
     except Exception as e:
         print(f"Warning: Could not clean up old logs: {e}")
 
-def wait_for_display(logger, max_retries=30, retry_delay=1):
-    """Wait for X11 display to be available before importing GTK"""
-    logger.info("Waiting for display to be available...")
-    
-    for i in range(max_retries):
-        # Check if DISPLAY environment variable is set
-        display_env = os.environ.get('DISPLAY')
-        if not display_env:
-            logger.warning(f"DISPLAY not set (attempt {i+1}/{max_retries})")
-            time.sleep(retry_delay)
-            continue
-        
-        # Try to connect to X server using xset or a simple test
-        try:
-            import subprocess
-            result = subprocess.run(
-                ['xset', 'q'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=2
-            )
-            if result.returncode == 0:
-                logger.info(f"Display available at {display_env} (attempt {i+1}/{max_retries})")
-                return True
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            # xset not available or timed out, try alternative method
-            try:
-                # Alternative: try to open a connection using xlib
-                import subprocess
-                result = subprocess.run(
-                    ['xdpyinfo'],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=2
-                )
-                if result.returncode == 0:
-                    logger.info(f"Display available at {display_env} (attempt {i+1}/{max_retries})")
-                    return True
-            except:
-                pass
-        except Exception as e:
-            logger.debug(f"Display check error: {e}")
-        
-        logger.info(f"Waiting for display... (attempt {i+1}/{max_retries})")
-        time.sleep(retry_delay)
-    
-    logger.error("Could not connect to display after waiting. No display available?")
-    return False
-
 def main():
     logger = setup_logging()
     logger.info("=" * 60)
     logger.info("TimeBomb starting...")
     
-    # Wait for display BEFORE importing GTK
-    if not wait_for_display(logger):
-        logger.error("Failed to connect to display. Exiting.")
-        sys.exit(1)
-    
-    # NOW it's safe to import GTK
+    # Import GTK (systemd ensures display is ready)
     try:
         import gi
         gi.require_version("Gtk", "3.0")
@@ -140,7 +85,7 @@ def main():
     from app_manager import AppManager
     from hotkey import HotkeyManager
     
-    # Initialize components (declare variables first to avoid UnboundLocalError)
+    # Initialize components
     gui = None
     app_manager = None
     hotkeys = None
