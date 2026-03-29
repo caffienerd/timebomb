@@ -45,24 +45,60 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PYTHON_DIR="$SCRIPT_DIR/python"
 VENV_DIR="$PYTHON_DIR/venv"
 
+# Detect the correct gtk-layer-shell package name for apt-based systems.
+# Debian 12 / Ubuntu 22.04 ship it as 'gtk-layer-shell0'; older releases
+# used 'gtk-layer-shell'.  We probe with apt-cache so the script stays
+# forward-compatible if the name ever changes back.
+detect_gtk_layer_shell_pkg() {
+    for pkg in gtk-layer-shell0 gtk-layer-shell; do
+        if apt-cache show "$pkg" &>/dev/null 2>&1; then
+            echo "$pkg"
+            return
+        fi
+    done
+    # Fall back to the newer name so the error message is still useful
+    echo "gtk-layer-shell0"
+}
+
+# Detect the correct GObject introspection dev package for apt-based systems.
+# PyGObject >= 3.51 requires libgirepository-2.0-dev, but Debian 12 /
+# Ubuntu 22.04 only ship libgirepository1.0-dev.  When the newer package is
+# absent we cap PyGObject at 3.50.0 (last release that builds against 1.0).
+detect_gi_dev_pkg() {
+    if apt-cache show libgirepository-2.0-dev &>/dev/null 2>&1; then
+        GI_DEV_PKG="libgirepository-2.0-dev"
+        PYGOBJECT_PIN=""           # latest is fine
+    else
+        GI_DEV_PKG="libgirepository1.0-dev"
+        PYGOBJECT_PIN="==3.50.0"   # last version that builds against 1.0
+    fi
+}
+
 detect_package_manager() {
     if command -v apt &> /dev/null; then
         PKG_MANAGER="apt"
         PKG_INSTALL="sudo apt install -y"
-        PACKAGES="python3 python3-venv python3-pip libcairo2-dev gtk-layer-shell libgtk-3-0 python3-gi gir1.2-gtk-3.0 pulseaudio-utils fontconfig x11-utils"
+
+        GTK_LAYER_SHELL_PKG=$(detect_gtk_layer_shell_pkg)
+        detect_gi_dev_pkg
+
+        PACKAGES="python3 python3-venv python3-pip libcairo2-dev ${GTK_LAYER_SHELL_PKG} libgtk-3-0 python3-gi gir1.2-gtk-3.0 ${GI_DEV_PKG} pulseaudio-utils fontconfig x11-utils"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
         PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
+        PYGOBJECT_PIN=""
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
         PACKAGES="python cairo gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig xorg-xdpyinfo"
         ARCH_AUDIO_CONFLICT=true
+        PYGOBJECT_PIN=""
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="sudo zypper install -y"
         PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel python3-cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
+        PYGOBJECT_PIN=""
     else
         echo "ERROR: Could not detect package manager!"
         echo "Supported: apt (Debian/Ubuntu), dnf (Fedora/RHEL), pacman (Arch), zypper (openSUSE)"
@@ -80,6 +116,9 @@ detect_package_manager() {
     fi
     
     echo "✓ Detected package manager: $PKG_MANAGER"
+    if [ -n "$PYGOBJECT_PIN" ]; then
+        echo "  ℹ  libgirepository 1.0 detected — will install PyGObject${PYGOBJECT_PIN}"
+    fi
 }
 
 echo "[1/8] Detecting system..."
@@ -179,7 +218,7 @@ echo "✓ Virtual environment created at: $VENV_DIR"
 echo ""
 echo "[6/8] Installing Python packages in venv..."
 "$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install evdev PyGObject pyudev || {
+"$VENV_DIR/bin/pip" install evdev "PyGObject${PYGOBJECT_PIN}" pyudev || {
     echo "ERROR: Failed to install Python packages!"
     echo "This usually means system dependencies are missing."
     exit 1
