@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="22" fill="#25282d"/>
+  <circle cx="64" cy="70" r="40" fill="#33373d" stroke="#0b0d10" stroke-width="6"/>
+  <path d="M48 28h32v13H48z" fill="#33373d" stroke="#0b0d10" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M77 29c9-13 20-12 28-4" fill="none" stroke="#a0ffa0" stroke-width="7" stroke-linecap="round"/>
+  <path d="M96 25c11 3 13 12 10 21" fill="none" stroke="#23ff23" stroke-width="5" stroke-linecap="round"/>
+  <text x="64" y="82" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#23ff23">TB</text>
+  <path d="M36 103h56" stroke="#a0ffa0" stroke-width="5" stroke-linecap="round" opacity=".75"/>
+</svg>

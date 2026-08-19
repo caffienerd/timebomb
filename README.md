@@ -119,8 +119,7 @@ Linux/
 │   │   └── state.ini       # Window position and mode
 │   └── logs/               # Application logs (auto-generated)
 │       ├── .gitkeep
-│       ├── timebomb_YYYYMMDD.log  # Daily logs
-│       └── autostart.log   # Autostart debug log
+│       └── timebomb_YYYYMMDD.log  # Daily logs
 └── python/
     ├── venv/               # Virtual environment (auto-generated)
     ├── app_manager.py      # App state management
@@ -165,45 +164,55 @@ The install script handles:
 
 #### Autostart Configuration
 
-The install script can set up TimeBomb to start automatically on login using XDG autostart (works on all distros and desktop environments).
+The install script can set up TimeBomb to start automatically on login using a systemd user service.
 
 **Features:**
-- 12-second startup delay to ensure desktop environment is ready
-- Automatic retry logic (waits up to 20 seconds for display)
-- Comprehensive logging for debugging startup issues
-- Logs saved to `assets/logs/autostart.log`
+- Starts with `graphical-session.target`
+- Uses `GDK_BACKEND=wayland,x11` so Wayland sessions can use GtkLayerShell
+- Restarts on failure, with rate limiting to avoid endless restart storms
+- Logs to the systemd journal and daily files in `assets/logs/`
 
-**Manual autostart setup:**
+**Manual systemd setup:**
 
 If you skipped autostart during installation:
 
 ```bash
-mkdir -p ~/.config/autostart
+mkdir -p ~/.config/systemd/user
 
-cat > ~/.config/autostart/timebomb.desktop <<'EOF'
-[Desktop Entry]
-Type=Application
-Name=TimeBomb
-Comment=Floating Timer/Stopwatch
-Exec=bash -c "sleep 12 && env GDK_BACKEND=x11 /path/to/timebomb/Linux/python/venv/bin/python3 /path/to/timebomb/Linux/python/timebomb.py >> /path/to/timebomb/Linux/assets/logs/autostart.log 2>&1"
-Terminal=false
-StartupNotify=false
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=12
-Categories=Utility;
-Keywords=timer;stopwatch;clock;
+cat > ~/.config/systemd/user/timebomb.service <<'EOF'
+[Unit]
+Description=TimeBomb - Floating Timer/Stopwatch
+Documentation=https://github.com/caffienerd/timebomb
+After=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/timebomb/Linux/python
+Environment="GDK_BACKEND=wayland,x11"
+ExecStart=/path/to/timebomb/Linux/python/venv/bin/python3 /path/to/timebomb/Linux/python/timebomb.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
 EOF
 
-chmod 644 ~/.config/autostart/timebomb.desktop
+systemctl --user daemon-reload
+systemctl --user enable --now timebomb.service
 ```
 
 **Important:** Replace `/path/to/timebomb/` with your actual TimeBomb installation directory.
 
 To disable autostart:
 ```bash
-rm ~/.config/autostart/timebomb.desktop
+systemctl --user disable --now timebomb.service
+rm ~/.config/systemd/user/timebomb.service
+systemctl --user daemon-reload
 ```
 
 #### Logging System
@@ -215,17 +224,17 @@ TimeBomb includes comprehensive logging to help debug issues:
   - Automatic cleanup (keeps last 30 days)
   - Contains all app events and errors
 
-- **Autostart log:** `assets/logs/autostart.log`
-  - Captures startup output when launched via autostart
-  - Useful for debugging boot issues
+- **Systemd journal:** `journalctl --user -u timebomb.service`
+  - Captures service lifecycle and startup output
+  - Useful for debugging login startup issues
 
 **View logs:**
 ```bash
 # View today's log
 tail -f ~/path/to/timebomb/Linux/assets/logs/timebomb_$(date +%Y%m%d).log
 
-# View autostart log
-cat ~/path/to/timebomb/Linux/assets/logs/autostart.log
+# View service logs
+journalctl --user -u timebomb.service -f
 
 # List all logs
 ls -lh ~/path/to/timebomb/Linux/assets/logs/
@@ -297,9 +306,9 @@ Just delete the folder. If you added it to startup, remove the shortcut from the
 ### Linux
 
 **TimeBomb doesn't start on login:**
-- Check autostart log: `cat ~/path/to/timebomb/Linux/assets/logs/autostart.log`
-- Verify desktop file exists: `ls ~/.config/autostart/timebomb.desktop`
-- Check permissions: Desktop file should NOT be executable (`-rw-r--r--`)
+- Check service status: `systemctl --user status timebomb.service`
+- View service logs: `journalctl --user -u timebomb.service -n 100 --no-pager`
+- Verify the service points at your current checkout: `systemctl --user cat timebomb.service`
 
 **Keyboard shortcuts not working:**
 - Ensure you're in the `input` group: `groups | grep input`
@@ -307,9 +316,9 @@ Just delete the folder. If you added it to startup, remove the shortcut from the
 - Log out and back in for changes to take effect
 
 **GTK initialization errors:**
-- Check if display is ready: The app waits up to 20 seconds for GTK to initialize
-- View logs to see retry attempts
-- If using autostart, ensure the 12-second delay is sufficient for your system
+- Check whether the service is using the expected backend: `systemctl --user cat timebomb.service`
+- On Wayland, prefer `GDK_BACKEND=wayland,x11` so GtkLayerShell can initialize
+- View logs for the exact display/backend error
 
 **Viewing debug information:**
 ```bash
@@ -320,7 +329,7 @@ ps aux | grep timebomb
 tail -f ~/path/to/timebomb/Linux/assets/logs/timebomb_$(date +%Y%m%d).log
 
 # Check autostart configuration
-cat ~/.config/autostart/timebomb.desktop
+systemctl --user cat timebomb.service
 ```
 
 ### Windows
@@ -342,7 +351,7 @@ TimeBomb uses Win+key combos because it's the only modifier not heavily used by 
 - Threaded keyboard listener to avoid blocking the GUI
 - Hot-plug support for USB keyboards
 - Comprehensive logging with automatic rotation and cleanup
-- Graceful startup with retry logic for autostart reliability
+- Systemd user service for login startup
 
 ### Windows
 - Built with AutoHotkey

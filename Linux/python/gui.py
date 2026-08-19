@@ -99,6 +99,11 @@ class AppGUI(Gtk.Window):
         # Detect if we're on Wayland
         display = Gdk.Display.get_default()
         self.is_wayland = display and type(display).__name__ == 'GdkWaylandDisplay'
+        self.uses_layer_shell = self.is_wayland and HAS_LAYER_SHELL
+        self.layer_shell_x = 0
+        self.layer_shell_y = 0
+        self.context_menu_provider = None
+        self.context_menu = None
         
         self.logger.info(f"Display type: {'Wayland' if self.is_wayland else 'X11'}")
         self.logger.info(f"Layer Shell available: {HAS_LAYER_SHELL}")
@@ -110,7 +115,7 @@ class AppGUI(Gtk.Window):
         self.set_accept_focus(False)
         
         # Apply Layer Shell if on Wayland and available
-        if self.is_wayland and HAS_LAYER_SHELL:
+        if self.uses_layer_shell:
             self._setup_layer_shell()
         else:
             self._setup_fallback()
@@ -129,6 +134,7 @@ class AppGUI(Gtk.Window):
         # Frame holder
         frame = Gtk.EventBox()
         frame.set_name("box")
+        self.drag_handle = frame
         self.add(frame)
 
         # Layout
@@ -176,17 +182,20 @@ class AppGUI(Gtk.Window):
         # Set to OVERLAY layer - this is ABOVE fullscreen apps!
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
         
-        # Don't anchor to any edge (free-floating)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, False)
+        # Wayland layer-shell surfaces are positioned with anchors and margins.
+        # Anchor top-left and update those margins when the user drags.
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.BOTTOM, False)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, False)
+        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.RIGHT, False)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, 0)
+        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, 0)
         
         # Set namespace
         GtkLayerShell.set_namespace(self, "timebomb")
         
-        # Disable exclusive zone (don't push other windows)
-        GtkLayerShell.auto_exclusive_zone_enable(self)
+        # Do not reserve panel space; this is an overlay.
+        GtkLayerShell.set_exclusive_zone(self, 0)
         
         self.logger.info("Layer Shell configured - window will be above fullscreen apps")
     
@@ -207,6 +216,25 @@ class AppGUI(Gtk.Window):
         if window:
             window.set_override_redirect(True)
             window.raise_()
+
+    def move(self, x, y):
+        """Move the window using the active backend's positioning model."""
+        if self.uses_layer_shell:
+            self.layer_shell_x = int(x)
+            self.layer_shell_y = int(y)
+            screen_x, screen_y, _, _ = self.get_screen_bounds()
+            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.LEFT, max(0, self.layer_shell_x - screen_x))
+            GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, max(0, self.layer_shell_y - screen_y))
+            return
+
+        Gtk.Window.move(self, int(x), int(y))
+
+    def get_position(self):
+        """Return the saved backend position."""
+        if self.uses_layer_shell:
+            return self.layer_shell_x, self.layer_shell_y
+
+        return Gtk.Window.get_position(self)
 
     def get_screen_bounds(self):
         """Get the usable screen dimensions"""
@@ -257,6 +285,7 @@ class AppGUI(Gtk.Window):
 
     def apply_css(self):
         fonts = self.scaler.get_font_sizes()
+        menu_font_size = max(8, fonts['prefix'] - 12)
         
         css = f"""
         window {{ background: transparent; }}
@@ -298,6 +327,41 @@ class AppGUI(Gtk.Window):
             font-size: {fonts['prefix']}px;
             color: #A0FFA0;
         }}
+
+        #timebomb_context_menu {{
+            background-color: rgba(64,64,69,0.96);
+            border: 1px solid rgba(10,10,12,0.95);
+            padding: 4px;
+        }}
+
+        #timebomb_context_menu menuitem {{
+            background-color: rgba(64,64,69,0.96);
+            color: #A0FFA0;
+            min-height: 24px;
+            padding: 5px 14px;
+        }}
+
+        #timebomb_context_menu menuitem:hover {{
+            background-color: rgba(80,80,85,0.98);
+        }}
+
+        #timebomb_context_menu menuitem:disabled {{
+            color: rgba(160,255,160,0.38);
+        }}
+
+        #timebomb_context_menu menuitem label {{
+            background: transparent;
+            color: inherit;
+            font-family: Arial;
+            font-size: {menu_font_size}px;
+            font-weight: bold;
+        }}
+
+        #timebomb_context_menu separator {{
+            background-color: rgba(35,255,35,0.35);
+            min-height: 1px;
+            margin: 4px 8px;
+        }}
         """.encode()
 
         provider = Gtk.CssProvider()
@@ -311,14 +375,15 @@ class AppGUI(Gtk.Window):
 
     def enable_drag(self):
         self.dragging = False
-        self.add_events(
+        target = getattr(self, 'drag_handle', self)
+        target.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK |
             Gdk.EventMask.POINTER_MOTION_MASK |
             Gdk.EventMask.BUTTON_RELEASE_MASK
         )
-        self.connect("button-press-event", self.on_press)
-        self.connect("motion-notify-event", self.on_drag)
-        self.connect("button-release-event", self.on_release)
+        target.connect("button-press-event", self.on_press)
+        target.connect("motion-notify-event", self.on_drag)
+        target.connect("button-release-event", self.on_release)
     
     def check_and_raise(self):
         """Periodically check if we need to raise the window"""
@@ -338,19 +403,66 @@ class AppGUI(Gtk.Window):
         if not (self.is_wayland and HAS_LAYER_SHELL):
             GLib.timeout_add(500, self.check_and_raise)
 
+    def get_pointer_position(self, event):
+        """Get pointer coordinates in screen space when the backend exposes them."""
+        try:
+            display = Gdk.Display.get_default()
+            seat = display.get_default_seat() if display else None
+            pointer = seat.get_pointer() if seat else None
+            if pointer:
+                _, x, y = pointer.get_position()
+                return float(x), float(y)
+        except Exception:
+            pass
+
+        return float(event.x_root), float(event.y_root)
+
     def on_press(self, widget, event):
+        if event.button == 3:
+            return self.show_context_menu(event)
+
         if event.button == 1:
             self.dragging = True
+            pointer_x, pointer_y = self.get_pointer_position(event)
             win_x, win_y = self.get_position()
-            self.offset_x = event.x_root - win_x
-            self.offset_y = event.y_root - win_y
+            self.offset_x = pointer_x - win_x
+            self.offset_y = pointer_y - win_y
+        return True
+
+    def show_context_menu(self, event):
+        provider = getattr(self, 'context_menu_provider', None)
+        if not provider:
+            return True
+
+        menu = Gtk.Menu()
+        menu.set_name("timebomb_context_menu")
+        for item in provider():
+            if item is None:
+                separator = Gtk.SeparatorMenuItem()
+                menu.append(separator)
+                continue
+
+            label, callback, sensitive = item
+            menu_item = Gtk.MenuItem(label=label)
+            menu_item.get_style_context().add_class("timebomb-context-item")
+            menu_item.set_sensitive(bool(sensitive))
+            menu_item.connect("activate", lambda _item, cb=callback: cb())
+            menu.append(menu_item)
+
+        self.context_menu = menu
+        menu.show_all()
+        if hasattr(menu, "popup_at_pointer"):
+            menu.popup_at_pointer(event)
+        else:
+            menu.popup(None, None, None, None, event.button, event.time)
         return True
 
     def on_drag(self, widget, event):
         if self.dragging:
+            pointer_x, pointer_y = self.get_pointer_position(event)
             # Calculate new position
-            new_x = int(event.x_root - self.offset_x)
-            new_y = int(event.y_root - self.offset_y)
+            new_x = int(pointer_x - self.offset_x)
+            new_y = int(pointer_y - self.offset_y)
             
             # Constrain to screen bounds
             constrained_x, constrained_y = self.constrain_to_screen(new_x, new_y)
