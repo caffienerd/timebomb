@@ -29,12 +29,98 @@ class AppManager:
         os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
         
         self.gui.save_callback = self.save_state
+        self.gui.context_menu_provider = self.get_context_menu_items
         
         self.load_state()
     
     def get_current(self):
         """Get the current active mode instance"""
         return self.stopwatch if self.mode == "stopwatch" else self.timer
+
+    def show(self):
+        """Show the current timer/stopwatch window."""
+        if self.mode == "timer" and hasattr(self.timer, 'alarm_gui') and self.timer.alarm_gui:
+            self.timer.alarm_gui.present()
+            return
+
+        current = self.get_current()
+        if current.visible:
+            self.gui.show_all()
+            self.gui.present()
+            window = self.gui.get_window()
+            if window:
+                window.raise_()
+            return
+
+        self.load_state()
+        current.start()
+
+    def hide(self):
+        """Hide the current timer/stopwatch window."""
+        current = self.get_current()
+        if current.visible:
+            self.save_state()
+            current.stop()
+
+    def show_countdown(self):
+        """Switch to countdown mode and show it."""
+        if self.mode != "timer":
+            self.switch_mode()
+        else:
+            self.show()
+
+    def show_stopwatch(self):
+        """Switch to stopwatch mode and show it."""
+        if self.mode != "stopwatch":
+            self.switch_mode()
+        else:
+            self.show()
+
+    def adjust_countdown_minutes(self, delta):
+        """Adjust the countdown by whole minutes from the context menu."""
+        if self.mode != "timer":
+            self.show_countdown()
+
+        if hasattr(self.timer, 'alarm_gui') and self.timer.alarm_gui:
+            return
+
+        if not self.timer.visible:
+            self.show()
+
+        new_minutes = max(1, min(999, self.timer.timer_minutes + delta))
+        if new_minutes == self.timer.timer_minutes and self.timer.timer_seconds == 0:
+            return
+
+        self.timer.timer_minutes = new_minutes
+        self.timer.timer_seconds = 0
+        self.timer.total_timer_seconds = self.timer.timer_minutes * 60
+        self.timer.timer_start_time = time.time()
+        self.timer.last_reset_minutes = self.timer.timer_minutes
+        self.timer.last_reset_seconds = 0
+        self.timer.below_10 = False
+        self.timer.gui.main_label.set_name("main_time")
+        self.timer.gui.main_label.set_opacity(1.0)
+        self.timer.update_display()
+        self.timer.play_sound("adjust.wav")
+
+    def get_context_menu_items(self):
+        """Return right-click menu items for the floating window."""
+        current = self.get_current()
+        reset_label = "Reset Countdown" if self.mode == "timer" else "Reset Stopwatch"
+        pause_label = "Pause / Resume Countdown" if self.mode == "timer" else "Pause / Resume Stopwatch"
+        timer_menu_enabled = self.mode == "timer" and self.timer.visible
+        alarm_active = self.mode == "timer" and hasattr(self.timer, 'alarm_gui') and self.timer.alarm_gui
+
+        return [
+            ("Countdown Mode", self.show_countdown, self.mode != "timer"),
+            ("Stopwatch Mode", self.show_stopwatch, self.mode != "stopwatch"),
+            None,
+            (reset_label, self.reset, current.visible),
+            (pause_label, self.pause, current.visible and not alarm_active),
+            None,
+            ("+1 min", lambda: self.adjust_countdown_minutes(1), timer_menu_enabled and not alarm_active),
+            ("-1 min", lambda: self.adjust_countdown_minutes(-1), timer_menu_enabled and not alarm_active),
+        ]
     
     def toggle(self):
         """Toggle visibility of current mode"""
@@ -47,11 +133,9 @@ class AppManager:
             return
         
         if current.visible:
-            self.save_state()
-            current.stop()
+            self.hide()
         else:
-            self.load_state()
-            current.start()
+            self.show()
     
     def pause(self):
         """Pause/resume current mode"""
@@ -223,11 +307,13 @@ class AppManager:
             config['General'] = {}
         config['General']['mode'] = self.mode
 
-        x, y = self.gui.get_position()
-        if 'Position' not in config:
-            config['Position'] = {}
-        config['Position']['x'] = str(x)
-        config['Position']['y'] = str(y)
+        current = self.get_current()
+        if current.visible:
+            x, y = self.gui.get_position()
+            if 'Position' not in config:
+                config['Position'] = {}
+            config['Position']['x'] = str(x)
+            config['Position']['y'] = str(y)
 
         with open(self.config_file, 'w') as f:
             config.write(f)

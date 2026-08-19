@@ -44,6 +44,7 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PYTHON_DIR="$SCRIPT_DIR/python"
 VENV_DIR="$PYTHON_DIR/venv"
+PYTHON_BIN=""
 
 # Detect the correct gtk-layer-shell package name for apt-based systems.
 # Debian 12 / Ubuntu 22.04 ship it as 'gtk-layer-shell0'; older releases
@@ -82,22 +83,22 @@ detect_package_manager() {
         GTK_LAYER_SHELL_PKG=$(detect_gtk_layer_shell_pkg)
         detect_gi_dev_pkg
 
-        PACKAGES="python3 python3-venv python3-pip libcairo2-dev ${GTK_LAYER_SHELL_PKG} libgtk-3-0 python3-gi gir1.2-gtk-3.0 ${GI_DEV_PKG} pulseaudio-utils fontconfig x11-utils"
+        PACKAGES="python3 python3-venv python3-pip libcairo2-dev ${GTK_LAYER_SHELL_PKG} libgtk-3-0 python3-gi gir1.2-gtk-3.0 ${GI_DEV_PKG} python3-evdev python3-pyudev pulseaudio-utils fontconfig x11-utils"
     elif command -v dnf &> /dev/null; then
         PKG_MANAGER="dnf"
         PKG_INSTALL="sudo dnf install -y"
-        PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
+        PACKAGES="python3 python3-devel gcc cairo-devel cairo-gobject-devel gtk-layer-shell gtk3 python3-gobject python3-evdev python3-pyudev pulseaudio-utils fontconfig xdpyinfo"
         PYGOBJECT_PIN=""
     elif command -v pacman &> /dev/null; then
         PKG_MANAGER="pacman"
         PKG_INSTALL="sudo pacman -S --needed --noconfirm"
-        PACKAGES="python cairo gtk-layer-shell gtk3 python-gobject pulseaudio fontconfig xorg-xdpyinfo"
+        PACKAGES="python cairo gtk-layer-shell gtk3 python-gobject python-evdev python-pyudev pulseaudio fontconfig xorg-xdpyinfo"
         ARCH_AUDIO_CONFLICT=true
         PYGOBJECT_PIN=""
     elif command -v zypper &> /dev/null; then
         PKG_MANAGER="zypper"
         PKG_INSTALL="sudo zypper install -y"
-        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel python3-cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject pulseaudio-utils fontconfig xdpyinfo"
+        PACKAGES="python3 python3-devel gcc make pkg-config cairo-devel python3-cairo-devel libgtk-layer-shell0 typelib-1_0-GtkLayerShell-0_1 gtk3 python3-gobject python3-evdev python3-pyudev pulseaudio-utils fontconfig xdpyinfo"
         PYGOBJECT_PIN=""
     else
         echo "ERROR: Could not detect package manager!"
@@ -121,17 +122,29 @@ detect_package_manager() {
     fi
 }
 
+select_python() {
+    if [ -n "$TIMEBOMB_PYTHON" ]; then
+        PYTHON_BIN="$TIMEBOMB_PYTHON"
+    elif [ -x /usr/bin/python3 ]; then
+        PYTHON_BIN="/usr/bin/python3"
+    else
+        PYTHON_BIN="$(command -v python3 2>/dev/null || true)"
+    fi
+
+    if [ -z "$PYTHON_BIN" ] || [ ! -x "$PYTHON_BIN" ]; then
+        echo "ERROR: Python 3 is not installed!"
+        echo "Install it with: $PKG_INSTALL python3"
+        exit 1
+    fi
+}
+
 echo "[1/8] Detecting system..."
 detect_package_manager
 
 echo ""
 echo "[2/8] Checking Python installation..."
-if ! command -v python3 &> /dev/null; then
-    echo "ERROR: Python 3 is not installed!"
-    echo "Install it with: $PKG_INSTALL python3"
-    exit 1
-fi
-echo "✓ Python 3 found: $(python3 --version)"
+select_python
+echo "✓ Python 3 found: $("$PYTHON_BIN" --version) at $PYTHON_BIN"
 
 echo ""
 echo "[3/8] Installing system dependencies..."
@@ -153,7 +166,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if [[ $REPLY == "1" ]]; then
             echo "Using pipewire-pulse (already installed)"
             echo "Removing pulseaudio from package list..."
-            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
+            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject python-evdev python-pyudev fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
                 echo "TimeBomb may not work properly without all dependencies."
             }
@@ -162,7 +175,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             sudo pacman -S --needed pulseaudio || {
                 echo "WARNING: Failed to install pulseaudio."
             }
-            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject fontconfig xorg-xdpyinfo || {
+            sudo pacman -S --needed --noconfirm python cairo gtk-layer-shell gtk3 python-gobject python-evdev python-pyudev fontconfig xorg-xdpyinfo || {
                 echo "WARNING: Some packages failed to install."
             }
         fi
@@ -207,7 +220,7 @@ if [ -d "$VENV_DIR" ]; then
     rm -rf "$VENV_DIR"
 fi
 
-python3 -m venv "$VENV_DIR" || {
+"$PYTHON_BIN" -m venv --system-site-packages "$VENV_DIR" || {
     echo "ERROR: Failed to create virtual environment!"
     echo "Make sure python3-venv is installed:"
     echo "  $PKG_INSTALL python3-venv"
@@ -216,14 +229,28 @@ python3 -m venv "$VENV_DIR" || {
 echo "✓ Virtual environment created at: $VENV_DIR"
 
 echo ""
-echo "[6/8] Installing Python packages in venv..."
-"$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install evdev "PyGObject${PYGOBJECT_PIN}" pyudev || {
-    echo "ERROR: Failed to install Python packages!"
-    echo "This usually means system dependencies are missing."
-    exit 1
-}
-echo "✓ Python packages installed"
+echo "[6/8] Checking Python packages in venv..."
+
+MISSING_PIP_PACKAGES=()
+if ! "$VENV_DIR/bin/python3" -c "import evdev" &>/dev/null; then
+    MISSING_PIP_PACKAGES+=("evdev")
+fi
+if ! "$VENV_DIR/bin/python3" -c "import pyudev" &>/dev/null; then
+    MISSING_PIP_PACKAGES+=("pyudev")
+fi
+if ! "$VENV_DIR/bin/python3" -c "import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk" &>/dev/null; then
+    MISSING_PIP_PACKAGES+=("PyGObject${PYGOBJECT_PIN}")
+fi
+
+if [ ${#MISSING_PIP_PACKAGES[@]} -gt 0 ]; then
+    "$VENV_DIR/bin/pip" install --upgrade pip
+    "$VENV_DIR/bin/pip" install "${MISSING_PIP_PACKAGES[@]}" || {
+        echo "ERROR: Failed to install Python packages!"
+        echo "This usually means system dependencies are missing."
+        exit 1
+    }
+fi
+echo "✓ Python packages available"
 
 echo ""
 echo "[7/8] Adding user to 'input' group..."
@@ -285,16 +312,18 @@ Description=TimeBomb - Floating Timer/Stopwatch
 Documentation=https://github.com/caffienerd/timebomb
 After=graphical-session.target
 PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 Type=simple
 WorkingDirectory=$PYTHON_DIR
-Environment="GDK_BACKEND=x11"
+Environment="GDK_BACKEND=wayland,x11"
 ExecStart=$VENV_DIR/bin/python3 $PYTHON_DIR/timebomb.py
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:$SCRIPT_DIR/assets/logs/service.log
-StandardError=append:$SCRIPT_DIR/assets/logs/service.log
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=graphical-session.target
@@ -334,7 +363,7 @@ else
     echo "⊘ Skipping systemd service setup"
     echo ""
     echo "You can run TimeBomb manually with:"
-    echo "  cd $PYTHON_DIR && env GDK_BACKEND=x11 $VENV_DIR/bin/python3 timebomb.py"
+    echo "  cd $PYTHON_DIR && env GDK_BACKEND=wayland,x11 $VENV_DIR/bin/python3 timebomb.py"
     echo ""
     echo "Or set up the service later by re-running this installer."
 fi
